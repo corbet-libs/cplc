@@ -1,0 +1,17 @@
+[package]
+name = "cplc"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Policy facade of cvld: rulebook, profile schema and signing"
+license = "FSL-1.1-ALv2"
+repository = "https://github.com/corbet-libs/cplc"
+readme = "README.md"
+publish = false
+include = ["Cargo.toml", "src/**", "README.md", "LICENSE.md"]
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
