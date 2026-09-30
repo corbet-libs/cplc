@@ -887,3 +887,28 @@ async fn settings_witness_preserves_the_envelope_and_rejects_stale_publications(
         Err(Error::Verification)
     ));
 }
+
+#[tokio::test]
+async fn current_settings_check_does_not_publish_or_advance_epoch() {
+    let mut policy = memory().await;
+    let epoch = policy.epoch(NOW).await.unwrap();
+    let settings = policy.settings(NOW).await.unwrap();
+    assert_eq!(settings.community, COMMUNITY);
+    assert_eq!(settings.content["quota"], json!(10));
+    assert_eq!(policy.epoch(NOW).await.unwrap(), epoch);
+    assert!(
+        policy
+            .published(SnapshotKind::Settings, NOW)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let signed = policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
+    let view: Snapshot<crbk::Values> = verify_snapshot(
+        policy.key_ring().unwrap(),
+        &signed,
+        expectation(SnapshotKind::Settings, epoch, NOW),
+    )
+    .unwrap();
+    assert_eq!(settings.content, view.content);
+}

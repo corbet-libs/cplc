@@ -157,3 +157,8 @@ policy epoch. Reads page over the primary key in batches of 256; that batch size
 is not a revocation capacity limit. Memory storage enforces the same unbounded
 set semantics. Published documents retain their transport size bound. A large
 revocation set cannot prevent committing further revocations or advancing epochs.
+
+`Policy::settings(now)` returns the active flattened crbk snapshot without
+publishing, advancing the epoch, or recording that a caller read it. The door
+uses it for checks such as reserved-handle validation, independently of the
+fresh global passport proof needed for admission.

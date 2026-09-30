@@ -146,6 +146,15 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         effective_epoch(state.epoch, self.active(now).await?.change.policy_epoch)
     }
 
+    /// Resolve current settings without signing, publishing or recording a read.
+    pub async fn settings(&self, now: u64) -> Result<crbk::Snapshot> {
+        let state = self.current().await?;
+        Ok(self
+            .active(now)
+            .await?
+            .snapshot(&state.community, timestamp(now)?)?)
+    }
+
     /// Append a prospective rulebook change through crbk. Caller authorization
     /// and notice delivery are service duties. Epochs increase on each revision.
     pub async fn schedule_rules(
