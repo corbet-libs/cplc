@@ -152,7 +152,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         let active = self.active(now).await?;
         let mut snapshot = active.snapshot(&state.community, timestamp(now)?)?;
         snapshot.policy_epoch = effective_epoch(state.epoch, active.change.policy_epoch)?;
-        snapshot.issued = timestamp(day(now))?;
+        snapshot.issued = timestamp(crate::day(now))?;
         Ok(snapshot)
     }
 
