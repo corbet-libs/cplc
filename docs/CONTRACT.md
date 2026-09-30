@@ -37,8 +37,8 @@ canonical COSE verification and durable signing-state updates.
 
 crbk owns sparse resolution, immutable revisions, template/catalogue rules,
 prospective activation and minimum notice. `schedule_rules` delegates its write
-and validation to that leaf. Each subsequent rulebook revision must increase its
-policy epoch. Only `Selection::At(now)` is used for decisions; future revisions never activate
+and validation to that leaf. Each rulebook revision must advance its policy epoch by exactly one, beginning
+at one. An administrator cannot jump to an epoch that exhausts later revocations. Only `Selection::At(now)` is used for decisions; future revisions never activate
 early. The effective epoch is the checked sum of the facade counter and the active
 rulebook epoch. Both components only increase. Immediate edits advance the facade
 counter; each scheduled revision advances the other component when it activates.
@@ -78,7 +78,10 @@ announced policy activation. Maximum-proof-age expiry is determined by asking
 crbk at future times within this fixed policy interval, not by another policy
 engine. Every included gate covers the entire signed lifetime. Subject/scope
 mismatches, duplicate community gates, revoked members/devices, invalid pins,
-missing schema, wrong schema version and released membership fail closed.
+missing schema, wrong schema version and any membership other than Admitted fail closed, even
+when the action has no membership requirement. Credential Debug output is redacted.
+Community signer namespaces contain only ASCII letters, digits, dot, dash and
+underscore; the global cglb: namespace is reserved.
 
 ## Durability
 
@@ -114,11 +117,8 @@ values. Do not enable dependency SQL/HTTP debug tracing for member traffic.
 
 ## Integration limits
 
-The pinned crbk still depends on an older crlt revision than csgn. Its concrete
-libSQL adapter therefore needs the matching crlt type; tests use two handles to
-the same physical database. The facade's generic rulebook port avoids copying
-leaf logic. Align that upstream pin to obtain a single shared pool across all
-three stores. No leaf source is vendored or replaced here.
+crbk, csgn and cplc use one revision of crlt and clones of one database handle.
+CI rejects duplicate or floating Corbet dependencies, including transitive ones.
 
 cgrd currently consumes a narrower settings vocabulary (conjunctive gate lists
 and embedded revocations), while crbk publishes the full flat action policies.

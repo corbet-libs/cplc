@@ -316,8 +316,7 @@ name = "cplc"
 version = "0.0.0"
 dependencies = [
  "crbk",
- "crlt 0.0.0 (git+https://github.com/corbet-foss/crlt?rev=6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc)",
- "crlt 0.0.0 (git+https://github.com/corbet-foss/crlt?rev=9c076b1e4050529406df27533e12c8e0dd1fc0db)",
+ "crlt",
  "csgn",
  "cshm",
  "serde",
@@ -339,9 +338,9 @@ dependencies = [
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crbk?rev=0eff64915dbeab0a725a8b1c0ad9061ae7d83976#0eff64915dbeab0a725a8b1c0ad9061ae7d83976"
+source = "git+https://github.com/corbet-foss/crbk?rev=a84cdbf3cbeb8fdf55ebb2397644ec36364eb194#a84cdbf3cbeb8fdf55ebb2397644ec36364eb194"
 dependencies = [
- "crlt 0.0.0 (git+https://github.com/corbet-foss/crlt?rev=9c076b1e4050529406df27533e12c8e0dd1fc0db)",
+ "crlt",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -351,19 +350,6 @@ dependencies = [
 name = "crlt"
 version = "0.0.0"
 source = "git+https://github.com/corbet-foss/crlt?rev=6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc#6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc"
-dependencies = [
- "deadpool-libsql",
- "libsql",
- "sqlparser",
- "thiserror 2.0.21",
- "tokio",
- "url",
-]
-
-[[package]]
-name = "crlt"
-version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crlt?rev=9c076b1e4050529406df27533e12c8e0dd1fc0db#9c076b1e4050529406df27533e12c8e0dd1fc0db"
 dependencies = [
  "deadpool-libsql",
  "libsql",
@@ -395,7 +381,7 @@ source = "git+https://github.com/corbet-foss/csgn?rev=d7203f310c3c129c3f67ef4ef3
 dependencies = [
  "ciborium-ll",
  "coset",
- "crlt 0.0.0 (git+https://github.com/corbet-foss/crlt?rev=6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc)",
+ "crlt",
  "ed25519-dalek",
  "rand_core 0.10.1",
  "sha2",

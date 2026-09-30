@@ -156,12 +156,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         let state = self.current().await?.clone();
         let latest = self.rules.load(&state.community, Selection::Latest).await?;
         effective_epoch(state.epoch, change.policy_epoch)?;
-        if change.policy_epoch == 0
-            || latest
-                .as_ref()
-                .is_some_and(|r| change.policy_epoch <= r.change.policy_epoch)
+        if change.policy_epoch
+            != next_counter(latest.as_ref().map_or(0, |r| r.change.policy_epoch))?
         {
-            return Err(Error::Invalid("policy epoch must advance"));
+            return Err(Error::Invalid("policy epoch must advance by one"));
         }
         change.rulebook.validate()?;
         self.state = None;
@@ -510,6 +508,12 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
 
 fn check_issuer<K: csgn::Store>(signer: &csgn::PersistentSigner<K>, community: &str) -> Result<()> {
     identifier(community)?;
+    if !community
+        .bytes()
+        .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
+    {
+        return Err(Error::Invalid("community namespace"));
+    }
     if signer.key_ring().map_err(|_| Error::Signing)?.issuer() != community {
         return Err(Error::Invalid("signer scope"));
     }
@@ -543,7 +547,7 @@ fn validate_request(state: &StoredPolicy, request: &CredentialRequest<'_>) -> Re
     identifier(request.handle)?;
     let schema = state.schema.as_ref().ok_or(Error::Missing)?;
     if request.schema_version != schema.version
-        || request.subject.membership == crbk::MembershipState::Released
+        || request.subject.membership != crbk::MembershipState::Admitted
         || request.gates.len() > MAX_ENTRIES
         || request.pins.len() > MAX_ENTRIES
         || request.devices.is_empty()

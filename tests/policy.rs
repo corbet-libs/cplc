@@ -787,3 +787,79 @@ async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
     assert_eq!(next.policy_epoch, epoch);
     assert!(policy.revocations().unwrap().members.is_empty());
 }
+
+#[tokio::test]
+async fn empty_policy_never_issues_to_pending_lapsed_or_released_members() {
+    let mut policy = memory_with(book(crbk::ActionPolicy::default())).await;
+    for membership in [
+        crbk::MembershipState::Pending,
+        crbk::MembershipState::Lapsed,
+        crbk::MembershipState::Released,
+    ] {
+        let mut input = request(&[]);
+        input.subject.membership = membership;
+        assert!(matches!(
+            policy.issue(input, NOW).await,
+            Err(Error::Invalid(_))
+        ));
+    }
+    assert!(policy.issue(request(&[]), NOW).await.is_ok());
+}
+
+#[tokio::test]
+async fn an_epoch_jump_cannot_exhaust_revocation_capacity() {
+    let mut policy = memory().await;
+    for epoch in [3, i64::MAX as u64 - 10] {
+        assert!(matches!(
+            policy
+                .schedule_rules(Some(1), change(book(admission()), epoch, 200))
+                .await,
+            Err(Error::Invalid(_))
+        ));
+    }
+    policy
+        .set_revocations(Revocations {
+            members: BTreeSet::from([MEMBER.into()]),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(matches!(
+        policy.issue(request(&[]), NOW).await,
+        Err(Error::Revoked)
+    ));
+}
+
+#[tokio::test]
+async fn credential_debug_omits_member_handle_pins_and_devices() {
+    let mut policy = memory().await;
+    let signed = policy
+        .issue(request(&[development_gate(500)]), NOW)
+        .await
+        .unwrap();
+    let (credential, _) = decode_credential(policy.key_ring().unwrap(), &signed, NOW);
+    assert_eq!(format!("{credential:?}"), "Credential { .. }");
+}
+
+#[tokio::test]
+async fn global_issuer_namespace_is_unavailable_to_communities() {
+    let signer = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        "cglb:global",
+        key(1),
+        NOW,
+        1000,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(
+        Policy::create(
+            crbk::MemoryStore::default(),
+            MemoryStore::new("cglb:global").unwrap(),
+            signer,
+            config(),
+        )
+        .await,
+        Err(Error::Invalid(_))
+    ));
+}

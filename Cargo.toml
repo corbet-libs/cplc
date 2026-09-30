@@ -11,7 +11,7 @@ publish = false
 include = ["Cargo.toml", "src/**", "docs/**", "README.md", "LICENSE.md"]
 
 [dependencies]
-crbk = { git = "https://github.com/corbet-foss/crbk", rev = "0eff64915dbeab0a725a8b1c0ad9061ae7d83976" }
+crbk = { git = "https://github.com/corbet-foss/crbk", rev = "a84cdbf3cbeb8fdf55ebb2397644ec36364eb194" }
 crlt = { git = "https://github.com/corbet-foss/crlt", rev = "6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc" }
 csgn = { git = "https://github.com/corbet-foss/csgn", rev = "d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b", features = ["libsql"] }
 cshm = { git = "https://github.com/corbet-foss/cshm", rev = "d136d2dbaceddfa0a19158d8f3a685a84abd06e7" }
@@ -20,7 +20,6 @@ serde_json = "1"
 thiserror = "2"
 
 [dev-dependencies]
-crlt_rulebook = { package = "crlt", git = "https://github.com/corbet-foss/crlt", rev = "9c076b1e4050529406df27533e12c8e0dd1fc0db" }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 

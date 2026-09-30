@@ -133,7 +133,7 @@ pub struct CredentialGate {
 }
 
 /// Credential payload; never stored by cplc. COSE binds issuance, expiry and key.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Credential {
     /// Community namespace.
@@ -203,4 +203,10 @@ pub enum SettingEdit {
     Community(Option<serde_json::Value>),
     /// Root-only platform value and force flag.
     Platform(Option<crbk::PlatformValue>),
+}
+
+impl std::fmt::Debug for Credential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Credential").finish_non_exhaustive()
+    }
 }

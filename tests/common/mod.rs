@@ -171,23 +171,13 @@ pub fn migrations() -> Vec<crlt::Migration<'static>> {
         crlt::Migration::new(3, "policy", SCHEMA),
     ]
 }
-pub async fn databases(url: &str, token: &str) -> (crlt::Db, crlt_rulebook::Db) {
+pub async fn databases(url: &str, token: &str) -> (crlt::Db, crlt::Db) {
     let db = crlt::Db::open(crlt::Config::new(url, token)).await.unwrap();
     db.migrate(&migrations()).await.unwrap();
-    let rules_db = crlt_rulebook::Db::open(crlt_rulebook::Config::new(url, token))
-        .await
-        .unwrap();
-    rules_db
-        .migrate(&[
-            crlt_rulebook::Migration::new(1, "rulebook", crbk::SCHEMA),
-            crlt_rulebook::Migration::new(2, "signing", csgn::SCHEMA),
-            crlt_rulebook::Migration::new(3, "policy", SCHEMA),
-        ])
-        .await
-        .unwrap();
+    let rules_db = db.clone();
     (db, rules_db)
 }
-pub async fn sql_policy(db: &crlt::Db, rules_db: &crlt_rulebook::Db, community: &str) -> SqlPolicy {
+pub async fn sql_policy(db: &crlt::Db, rules_db: &crlt::Db, community: &str) -> SqlPolicy {
     let signer = csgn::PersistentSigner::create(
         csgn::LibsqlStore::new(db.community(community).unwrap()),
         community,
@@ -206,7 +196,7 @@ pub async fn sql_policy(db: &crlt::Db, rules_db: &crlt_rulebook::Db, community: 
     .await
     .unwrap()
 }
-pub async fn local() -> (tempfile::TempDir, crlt::Db, crlt_rulebook::Db, SqlPolicy) {
+pub async fn local() -> (tempfile::TempDir, crlt::Db, crlt::Db, SqlPolicy) {
     let dir = tempfile::tempdir().unwrap();
     let url = format!("file://{}", dir.path().join("policy.db").display());
     let (db, rules_db) = databases(&url, "").await;

@@ -42,7 +42,7 @@ each selected leaf's README and implemented contract:
 
 | Candidate | Decision and reason |
 |---|---|
-| [crbk](https://github.com/corbet-foss/crbk/tree/0eff64915dbeab0a725a8b1c0ad9061ae7d83976) | Selected for sparse settings, action policies, missing requirements, prospective revisions and storage. No local rule evaluator or replacement revision engine. |
+| [crbk](https://github.com/corbet-foss/crbk/tree/a84cdbf3cbeb8fdf55ebb2397644ec36364eb194) | Selected for sparse settings, action policies, missing requirements, prospective revisions and storage. No local rule evaluator or replacement revision engine. |
 | [Cedar 4.13](https://github.com/cedar-policy/cedar), [Casbin 2.20](https://github.com/casbin/casbin-rs) (Apache-2.0) | Maintained authorization engines; do not replace the already implemented crbk contract. Another engine would require a policy translation and duplicate semantics. |
 | [cshm](https://github.com/corbet-foss/cshm/tree/d136d2dbaceddfa0a19158d8f3a685a84abd06e7) | Selected for schema validation and change classification; it already delegates value validation to [jsonschema 0.58](https://github.com/Stranger6667/jsonschema) (MIT). No second schema engine. |
 | [csgn](https://github.com/corbet-foss/csgn/tree/d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b) | Selected for persistent community signing, rotation and verification. Its maintained [coset 0.4](https://github.com/google/coset) (Apache-2.0) and [ed25519-dalek 3](https://github.com/dalek-cryptography/curve25519-dalek) (BSD-3-Clause) dependencies execute all crypto. Direct use would duplicate its security contract. |
@@ -51,9 +51,7 @@ each selected leaf's README and implemented contract:
 
 All four cvld leaves are LGPL-3.0-only WITH LGPL-3.0-linking-exception and pinned
 by full Git revision. CI-resolved metadata for all 289 packages was reviewed: none requires a GPL-only
-or AGPL-only license. Tokio
-and tempfile are direct test-only dependencies. `crlt_rulebook` is a test-only
-alias for the older crlt revision required by crbk's concrete database adapter.
+or AGPL-only license. Tokio and tempfile are direct test-only dependencies.
 
 ## Storage and integration
 
@@ -65,15 +63,9 @@ One database per community; every application table includes `community_id`.
 No database credentials or signing secrets are read from the environment by
 production code. `MemoryStore` is a real volatile implementation for tests.
 
-Two explicit integration boundaries remain:
+Every store uses a clone of the same crlt database handle and pool.
 
-1. crbk's reviewed revision pins crlt `9c076b1e4050529406df27533e12c8e0dd1fc0db`,
-   while csgn pins `6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc`. Its adapter currently
-   needs a matching database handle. Real integration tests use both handles on
-   **one physical database**. Apply the complete migration history on each handle,
-   including after reopening, to initialize its crlt schema capability. Align the upstream dependency pin for one shared
-   pool; no leaf logic is copied or patched locally.
-2. cgrd's current settings format expresses conjunctive requirements and embeds
+cgrd's current settings format expresses conjunctive requirements and embeds
    revocations; crbk publishes full flat action policies. A consuming facade
    must provide an agreed, lossless adapter. These settings snapshots cannot be
    fed directly to cgrd. Issuance uses crbk's full all/any/k-of-n evaluator.
