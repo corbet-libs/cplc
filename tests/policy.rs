@@ -732,8 +732,8 @@ async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
         .edit_setting(
             "quota",
             SettingEdit::Community(Some(json!(15))),
-            NOW,
-            NOW,
+            NOW + 1,
+            NOW + 1,
             0,
         )
         .await
@@ -745,19 +745,22 @@ async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
                 value: json!(25),
                 force: true,
             })),
-            NOW,
-            NOW,
+            NOW + 2,
+            NOW + 2,
             0,
         )
         .await
         .unwrap();
-    let epoch = policy.epoch(NOW).await.unwrap();
+    let epoch = policy.epoch(NOW + 2).await.unwrap();
     assert!(epoch > first.policy_epoch);
-    let settings = policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
+    let settings = policy
+        .publish(SnapshotKind::Settings, NOW + 2)
+        .await
+        .unwrap();
     let settings: Snapshot<crbk::Values> = verify_snapshot(
         policy.key_ring().unwrap(),
         &settings,
-        expectation(SnapshotKind::Settings, epoch, NOW),
+        expectation(SnapshotKind::Settings, epoch, NOW + 2),
     )
     .unwrap();
     assert_eq!(settings.content["quota"], json!(25));
@@ -773,11 +776,11 @@ async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
             .await
             .is_err()
     );
-    let next = policy.trust_manifest(NOW).await.unwrap();
+    let next = policy.trust_manifest(NOW + 2).await.unwrap();
     let verified = policy
         .key_ring()
         .unwrap()
-        .verify(&next, csgn::Kind::SettingsSnapshot, NOW)
+        .verify(&next, csgn::Kind::SettingsSnapshot, NOW + 2)
         .unwrap();
     let next: TrustManifest = serde_json::from_slice(verified.payload()).unwrap();
     assert!(next.revision > first.revision);
