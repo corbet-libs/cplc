@@ -120,7 +120,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
 
     async fn advance_epoch(&self, next: &mut StoredPolicy) -> Result<()> {
         let latest = self.rules.load(&next.community, Selection::Latest).await?;
-        next.epoch = next_counter(next.epoch.max(latest.map_or(0, |r| r.change.policy_epoch)))?;
+        next.epoch = next_counter(next.epoch)?;
+        effective_epoch(next.epoch, latest.map_or(0, |r| r.change.policy_epoch))?;
         for publication in next.publications.values_mut() {
             publication.cose = None;
         }
@@ -142,7 +143,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     /// Effective epoch at a trusted time; future rulebook epochs remain inactive.
     pub async fn epoch(&self, now: u64) -> Result<u64> {
         let state = self.current().await?;
-        Ok(state.epoch.max(self.active(now).await?.change.policy_epoch))
+        effective_epoch(state.epoch, self.active(now).await?.change.policy_epoch)
     }
 
     /// Append a prospective rulebook change through crbk. Caller authorization
@@ -154,7 +155,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     ) -> Result<crbk::Revision> {
         let state = self.current().await?.clone();
         let latest = self.rules.load(&state.community, Selection::Latest).await?;
-        if change.policy_epoch < state.epoch
+        effective_epoch(state.epoch, change.policy_epoch)?;
+        if change.policy_epoch == 0
             || latest
                 .as_ref()
                 .is_some_and(|r| change.policy_epoch <= r.change.policy_epoch)
@@ -233,12 +235,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     }
 
     /// Invalidate prior epochs without changing settings or storing member events.
-    pub async fn bump_epoch(&mut self) -> Result<u64> {
+    pub async fn bump_epoch(&mut self) -> Result<()> {
         let mut next = self.current().await?.clone();
         self.advance_epoch(&mut next).await?;
-        let epoch = next.epoch;
-        self.commit(next).await?;
-        Ok(epoch)
+        self.commit(next).await
     }
 
     /// Pure leaf decision over current policy; no signature or member write.
@@ -268,7 +268,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         let mut next = self.current().await?.clone();
         let active = self.active(now).await?;
         let revision = next_counter(next.publications.get(&kind).map_or(0, |p| p.revision))?;
-        let epoch = next.epoch.max(active.change.policy_epoch);
+        let epoch = effective_epoch(next.epoch, active.change.policy_epoch)?;
         let payload = match kind {
             SnapshotKind::Settings => encode_snapshot(
                 &next,
@@ -412,7 +412,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             member: request.subject.id.into(),
             handle: request.handle.into(),
             schema_version: request.schema_version,
-            policy_epoch: state.epoch.max(active.change.policy_epoch),
+            policy_epoch: effective_epoch(state.epoch, active.change.policy_epoch)?,
             gates: community_gates,
             pins: request.pins.to_vec(),
             devices: request.devices.to_vec(),
@@ -552,4 +552,11 @@ fn usable_gate(
             now,
         )?
         .allowed)
+}
+
+fn effective_epoch(facade: u64, rulebook: u64) -> Result<u64> {
+    facade
+        .checked_add(rulebook)
+        .filter(|n| *n <= i64::MAX as u64)
+        .ok_or(Error::Invalid("epoch exhausted"))
 }

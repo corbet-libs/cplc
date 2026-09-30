@@ -38,11 +38,12 @@ canonical COSE verification and durable signing-state updates.
 crbk owns sparse resolution, immutable revisions, template/catalogue rules,
 prospective activation and minimum notice. `schedule_rules` delegates its write
 and validation to that leaf. Each subsequent rulebook revision must increase its
-policy epoch, and its epoch must be at least the facade's current epoch.
-Only `Selection::At(now)` is used for decisions; future revisions never activate
-early. The effective epoch is the maximum of the current facade epoch and the
-active rulebook epoch. Immediate facade edits advance beyond every announced
-rulebook epoch, so an older scheduled change cannot roll the epoch backward.
+policy epoch. Only `Selection::At(now)` is used for decisions; future revisions never activate
+early. The effective epoch is the checked sum of the facade counter and the active
+rulebook epoch. Both components only increase. Immediate edits advance the facade
+counter; each scheduled revision advances the other component when it activates.
+Thus an immediate revocation cannot mask a later scheduled epoch transition.
+Overflow fails closed; epochs fit positive signed 64-bit integers.
 
 cshm owns schema validation and change classification. The facade persists one
 current schema and requires increasing versions. Schema edits, public community
