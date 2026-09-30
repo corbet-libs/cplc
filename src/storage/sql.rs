@@ -1,7 +1,8 @@
 use crlt::{Community, Db, params};
 
+use super::MAX_STORED_DOCUMENT_BYTES;
 use super::{Storage, StoredPolicy, validate_transition};
-use crate::{Error, MAX_DOCUMENT_BYTES, Result, identifier};
+use crate::{Error, Result, identifier};
 
 /// Append to the composition root's complete numbered migration history.
 pub const SCHEMA: &str = "
@@ -132,7 +133,7 @@ fn decode(rows: &[crlt::Row], scope: &str) -> Result<Option<StoredPolicy>> {
         return Ok(None);
     };
     let document = row.get_str(1).map_err(|_| Error::Corrupt)?;
-    if document.len() > MAX_DOCUMENT_BYTES {
+    if document.len() > MAX_STORED_DOCUMENT_BYTES {
         return Err(Error::Corrupt);
     }
     let state: StoredPolicy = serde_json::from_str(document).map_err(|_| Error::Corrupt)?;

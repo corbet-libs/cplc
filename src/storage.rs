@@ -37,6 +37,11 @@ pub struct StoredPolicy {
     pub(crate) publications: BTreeMap<SnapshotKind, Publication>,
 }
 
+// Five independently bounded COSE publications, each encoded as JSON byte
+// arrays (at most four bytes per byte), plus the bounded core document.
+pub(crate) const MAX_STORED_DOCUMENT_BYTES: usize =
+    MAX_DOCUMENT_BYTES + 5 * 4 * (MAX_DOCUMENT_BYTES + 8192);
+
 impl StoredPolicy {
     /// Scope permanently bound to this document.
     pub fn community(&self) -> &str {
