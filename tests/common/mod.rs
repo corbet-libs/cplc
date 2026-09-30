@@ -177,6 +177,14 @@ pub async fn databases(url: &str, token: &str) -> (crlt::Db, crlt_rulebook::Db) 
     let rules_db = crlt_rulebook::Db::open(crlt_rulebook::Config::new(url, token))
         .await
         .unwrap();
+    rules_db
+        .migrate(&[
+            crlt_rulebook::Migration::new(1, "rulebook", crbk::SCHEMA),
+            crlt_rulebook::Migration::new(2, "signing", csgn::SCHEMA),
+            crlt_rulebook::Migration::new(3, "policy", SCHEMA),
+        ])
+        .await
+        .unwrap();
     (db, rules_db)
 }
 pub async fn sql_policy(db: &crlt::Db, rules_db: &crlt_rulebook::Db, community: &str) -> SqlPolicy {

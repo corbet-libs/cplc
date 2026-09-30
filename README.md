@@ -50,7 +50,8 @@ each selected leaf's README and implemented contract:
 | [Serde](https://github.com/serde-rs/serde), [serde_json](https://github.com/serde-rs/json), [thiserror](https://github.com/dtolnay/thiserror) (MIT/Apache-2.0) | Selected for typed wire/persistence data and redacted errors. No own parser. |
 
 All four cvld leaves are LGPL-3.0-only WITH LGPL-3.0-linking-exception and pinned
-by full Git revision. No GPL-only or AGPL-only dependency is introduced. Tokio
+by full Git revision. CI-resolved metadata for all 289 packages was reviewed: none requires a GPL-only
+or AGPL-only license. Tokio
 and tempfile are direct test-only dependencies. `crlt_rulebook` is a test-only
 alias for the older crlt revision required by crbk's concrete database adapter.
 
@@ -69,7 +70,8 @@ Two explicit integration boundaries remain:
 1. crbk's reviewed revision pins crlt `9c076b1e4050529406df27533e12c8e0dd1fc0db`,
    while csgn pins `6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc`. Its adapter currently
    needs a matching database handle. Real integration tests use both handles on
-   **one physical database**. Align the upstream dependency pin for one shared
+   **one physical database**. Apply the complete migration history on each handle,
+   including after reopening, to initialize its crlt schema capability. Align the upstream dependency pin for one shared
    pool; no leaf logic is copied or patched locally.
 2. cgrd's current settings format expresses conjunctive requirements and embeds
    revocations; crbk publishes full flat action policies. A consuming facade

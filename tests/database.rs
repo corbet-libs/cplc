@@ -267,6 +267,14 @@ async fn real_database_failure_after_signing_returns_no_publication() {
     let rules_db = crlt_rulebook::Db::open(crlt_rulebook::Config::new(&url, ""))
         .await
         .unwrap();
+    rules_db
+        .migrate(&[
+            crlt_rulebook::Migration::new(1, "rulebook", crbk::SCHEMA),
+            crlt_rulebook::Migration::new(2, "signing", csgn::SCHEMA),
+            crlt_rulebook::Migration::new(3, "policy", &constrained),
+        ])
+        .await
+        .unwrap();
     let mut policy = sql_policy(&db, &rules_db, COMMUNITY).await;
     configure(&mut policy, book(admission())).await;
     let before = LibsqlStore::new(&db, COMMUNITY)
