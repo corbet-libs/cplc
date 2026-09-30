@@ -280,17 +280,21 @@ pub struct FixtureMembership {
     pub lease_end: u64,
 }
 impl MembershipSource for FixtureMembership {
-    async fn membership(&self, member: &str, _: u64) -> Result<MembershipFacts> {
+    type Lease = ();
+    async fn membership(&self, member: &str, _: u64) -> Result<(MembershipFacts, Self::Lease)> {
         if self.member != member {
             return Err(Error::Invalid("fixture member"));
         }
-        Ok(MembershipFacts {
-            community: COMMUNITY.into(),
-            member: self.member.clone(),
-            state: self.state,
-            probation_until: self.probation_until,
-            lease_end: self.lease_end,
-        })
+        Ok((
+            MembershipFacts {
+                community: COMMUNITY.into(),
+                member: self.member.clone(),
+                state: self.state,
+                probation_until: self.probation_until,
+                lease_end: self.lease_end,
+            },
+            (),
+        ))
     }
 }
 pub async fn checked(

@@ -110,12 +110,15 @@ pub struct MembershipFacts {
 /// Read authoritative membership state at issuance. cmbr implements this boundary;
 /// cplc does not maintain a second member database or accept a lifetime class.
 pub trait MembershipSource {
+    /// Per-member serialization capability, held until signing has completed.
+    /// cmbr uses its member queue guard; read-only lobby calls never acquire it.
+    type Lease: Send + Sync;
     /// Read current lifecycle, probation and lease for this authenticated member.
     fn membership(
         &self,
         member: &str,
         now: u64,
-    ) -> impl std::future::Future<Output = Result<MembershipFacts>>;
+    ) -> impl std::future::Future<Output = Result<(MembershipFacts, Self::Lease)>>;
 }
 
 /// A pin fingerprint supplied by the membership facade; never an opening/salt.

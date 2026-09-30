@@ -213,3 +213,8 @@ The community facade supplies its server-held challenge. The wallet authenticate
 the COSE bytes using cpsd's `AuthenticatedCommunity` and the key ring discovered
 for the initiating origin. This is not an arbitrary-payload signing API. The
 binary cpsd purpose/version prevents confusion with a JSON membership credential.
+
+The membership source returns a per-member lease guard with its current facts.
+cplc retains this guard through signing, so revocation and membership changes
+cannot race the issuance check. The guard is released on success, error or
+cancellation. It is not acquired by pure lobby reads.

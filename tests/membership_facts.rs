@@ -162,3 +162,121 @@ async fn community_device_keys_are_preserved_without_a_global_wallet_key() {
     assert_eq!(credential.devices, [a]);
     assert!(!credential.devices.contains(&b));
 }
+
+// Observe the real signer's persistence boundary, retaining its actual CAS store.
+struct CheckedSigningStore {
+    real: csgn::MemoryStore,
+    checking: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    held: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+impl csgn::Store for CheckedSigningStore {
+    async fn load(
+        &self,
+        issuer: &str,
+    ) -> std::result::Result<Option<csgn::StoredState>, csgn::StorageError> {
+        self.real.load(issuer).await
+    }
+    async fn compare_exchange(
+        &self,
+        expected: Option<i64>,
+        state: &csgn::SigningState,
+    ) -> std::result::Result<i64, csgn::StorageError> {
+        if self.checking.load(std::sync::atomic::Ordering::SeqCst) {
+            assert!(
+                self.held.load(std::sync::atomic::Ordering::SeqCst),
+                "member lease must survive through durable signing"
+            );
+        }
+        self.real.compare_exchange(expected, state).await
+    }
+}
+struct Lease(std::sync::Arc<std::sync::atomic::AtomicBool>);
+impl Drop for Lease {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+struct LeasedSource {
+    held: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    lease_end: u64,
+}
+impl MembershipSource for LeasedSource {
+    type Lease = Lease;
+    async fn membership(&self, member: &str, _: u64) -> Result<(MembershipFacts, Lease)> {
+        self.held.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok((
+            MembershipFacts {
+                community: COMMUNITY.into(),
+                member: member.into(),
+                state: crbk::MembershipState::Admitted,
+                probation_until: None,
+                lease_end: self.lease_end,
+            },
+            Lease(self.held.clone()),
+        ))
+    }
+}
+#[tokio::test]
+async fn member_lease_survives_signing_and_is_released_on_success_or_refusal() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    let held = Arc::new(AtomicBool::new(false));
+    let checking = Arc::new(AtomicBool::new(false));
+    let signer = csgn::PersistentSigner::create(
+        CheckedSigningStore {
+            real: csgn::MemoryStore::default(),
+            held: held.clone(),
+            checking: checking.clone(),
+        },
+        COMMUNITY,
+        key(1),
+        day(NOW),
+        30 * DAY,
+    )
+    .await
+    .unwrap();
+    let mut policy = Policy::create(
+        crbk::MemoryStore::default(),
+        MemoryStore::new(COMMUNITY).unwrap(),
+        signer,
+        config(),
+    )
+    .await
+    .unwrap();
+    policy
+        .schedule_rules(
+            None,
+            change(book(crbk::ActionPolicy::default()), 1, NOW as i64),
+        )
+        .await
+        .unwrap();
+    policy.set_schema(schema(1)).await.unwrap();
+    let snapshot = policy.verified_settings(NOW).await.unwrap();
+    let gates = checked(&snapshot, MEMBER, "admit", &[], NOW).await.unwrap();
+    checking.store(true, Ordering::SeqCst);
+    for (lease_end, allowed) in [(90 * DAY, true), (0, false)] {
+        let source = LeasedSource {
+            held: held.clone(),
+            lease_end,
+        };
+        let result = policy
+            .issue(
+                &source,
+                CredentialRequest {
+                    subject: subject(),
+                    handle: "testmember",
+                    schema_version: 1,
+                    snapshot: &snapshot,
+                    gates: &gates,
+                    pins: &[],
+                    devices: DEVICES,
+                },
+                NOW,
+            )
+            .await;
+        assert_eq!(result.is_ok(), allowed);
+        assert!(!held.load(Ordering::SeqCst));
+    }
+}

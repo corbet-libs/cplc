@@ -12,7 +12,7 @@ include = ["Cargo.toml", "src/**", "docs/**", "README.md", "LICENSE.md"]
 
 [dependencies]
 cpsd = { git = "https://github.com/corbet-foss/cpsd", rev = "5b2d5d9970d4beae171d85e478d06ba0b29e1992" }
-cgts = { git = "https://github.com/corbet-libs/cgts", rev = "196ca0595f12bc67203d48aff395961ec5e3b971" }
+cgts = { git = "https://github.com/corbet-libs/cgts", rev = "33066e3bea67cc130ffd84088e7342d3e2028c9b" }
 crbk = { git = "https://github.com/corbet-foss/crbk", rev = "fe70dc61262a80dd7681da853acfdad290f3910c" }
 crlt = { git = "https://github.com/corbet-foss/crlt", rev = "6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc" }
 csgn = { git = "https://github.com/corbet-foss/csgn", rev = "d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b", features = ["libsql"] }

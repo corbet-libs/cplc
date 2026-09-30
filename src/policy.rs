@@ -531,7 +531,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             })
             .map_err(|_| Error::Verification)?;
         validate_request(&state, &request, &gates)?;
-        let facts = membership.membership(request.subject.id, now).await?;
+        let (facts, _membership_lease) = membership.membership(request.subject.id, now).await?;
         if facts.community != state.community
             || facts.member != request.subject.id
             || facts.state != crbk::MembershipState::Admitted
