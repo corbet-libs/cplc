@@ -685,8 +685,9 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cgts?rev=2ec8d93a4edca6b16236e6d7424ad0eae92dfc7d#2ec8d93a4edca6b16236e6d7424ad0eae92dfc7d"
+source = "git+https://github.com/corbet-libs/cgts?rev=09f0c250f11f894a5ee25f21672aed972f21a4a1#09f0c250f11f894a5ee25f21672aed972f21a4a1"
 dependencies = [
+ "cpns",
  "cblc",
  "cgrd",
  "clbs",
@@ -900,6 +901,7 @@ name = "cpns"
 version = "0.0.0"
 source = "git+https://github.com/corbet-foss/cpns?rev=23968a9fa338791e70078c6070a6f1f3cf185ff7#23968a9fa338791e70078c6070a6f1f3cf185ff7"
 dependencies = [
+ "crlt",
  "getrandom 0.4.3",
  "sha2 0.11.0",
  "subtle",
