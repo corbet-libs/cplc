@@ -16,7 +16,8 @@ community scope and serializes the writer and public-key distribution.
 - `set_schema`: delegate validation and change classification to cshm.
 - `may`: current rulebook verdict, with missing requirements; no member writes.
 - `issue`: evaluate the configured admission action and sign only on success.
-  New members get at most one day, established members thirty days, shortened
+  The crbk defaults are one day for new members and thirty days for established
+  members, with configurable caps shortened
   for proof expiry/age, upcoming policy activation and the signing-key policy.
 - `set_communities`, `set_revocations`, `bump_epoch`: current community policy.
 - `publish` / `published`: signed settings, schema, public communities and current

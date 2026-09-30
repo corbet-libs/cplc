@@ -196,7 +196,9 @@ precision is never used for a stored login/proof time. COSE issuance remains the
 day start even in these cases. Member probation and leases have no such exception.
 
 Device public keys must be generated independently per community by the wallet
-and authenticated/authorized by cmbr before issuance. A reusable global wallet
+and authenticated/authorized by the service’s community device protocol before
+issuance. cmbr owns passkey authentication, not the separate public device-key
+registry. A reusable global wallet
 key would link communities and is outside this contract. cplc signs only the
 supplied authorized set, rejects duplicates/revoked devices and cannot determine
 whether a public key was reused in another isolated community database.
