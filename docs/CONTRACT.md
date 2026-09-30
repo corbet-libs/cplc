@@ -206,3 +206,10 @@ global policy authority described in cglb's contract. A community signer never
 signs global policy or claims global issuance authority. Every credential renewal
 requiring global gates needs a fresh cpsd presentation verified against the
 current authenticated global epoch; a suspension prevents its next renewal.
+
+`Policy::sign_presentation_request` signs only a typed cpsd presentation request
+for the policy's own community, with a deadline at most 300 seconds ahead.
+The community facade supplies its server-held challenge. The wallet authenticates
+the COSE bytes using cpsd's `AuthenticatedCommunity` and the key ring discovered
+for the initiating origin. This is not an arbitrary-payload signing API. The
+binary cpsd purpose/version prevents confusion with a JSON membership credential.

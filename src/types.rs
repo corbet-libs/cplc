@@ -32,7 +32,7 @@ impl Config {
                 .bytes()
                 .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
             || self.snapshot_validity == 0
-            || self.snapshot_validity % crate::DAY != 0
+            || !self.snapshot_validity.is_multiple_of(crate::DAY)
             || self.snapshot_validity > i64::MAX as u64
         {
             return Err(crate::Error::Invalid("configuration"));

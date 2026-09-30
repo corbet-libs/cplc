@@ -309,10 +309,45 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     }
 
     /// Invalidate prior epochs without changing settings or storing member events.
+    ///
+    /// This does not permanently revoke a member who can satisfy the gates again.
     pub async fn bump_epoch(&mut self) -> Result<()> {
         let mut next = self.current().await?.clone();
         self.advance_epoch(&mut next).await?;
         self.commit(next).await
+    }
+
+    /// Authenticate a short-lived cpsd request for this community's wallet flow.
+    /// The owning community facade supplies its server-held challenge; holders
+    /// cannot choose an arbitrary payload, namespace or unbounded deadline.
+    pub async fn sign_presentation_request(
+        &mut self,
+        request: &cpsd::PresentationRequest,
+        now: u64,
+    ) -> Result<Vec<u8>> {
+        let state = self.current().await?;
+        if request.community().as_bytes() != state.community.as_bytes()
+            || request.now() < now
+            || request.now()
+                > now
+                    .checked_add(300)
+                    .ok_or(Error::Invalid("time overflow"))?
+        {
+            return Err(Error::Invalid("presentation request scope or deadline"));
+        }
+        let until = request
+            .now()
+            .checked_add(1)
+            .ok_or(Error::Invalid("time overflow"))?;
+        self.signer
+            .sign(
+                csgn::Kind::Credential,
+                &request.to_bytes(),
+                crate::day(now),
+                until,
+            )
+            .await
+            .map_err(|_| Error::Signing)
     }
 
     /// Sole admission decision over verified settings and bound gate receipts.

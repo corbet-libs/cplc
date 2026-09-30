@@ -14,7 +14,7 @@ pub use types::*;
 pub use verification::{SnapshotExpectation, VerifiedSnapshot, verify_settings, verify_snapshot};
 
 /// Leaf APIs used by the composition root; no alternate policy/crypto engine.
-pub use {crbk, crlt, csgn, cshm};
+pub use {cpsd, crbk, crlt, csgn, cshm};
 
 /// Redacted failures; supplied values and upstream SQL never enter diagnostics.
 #[derive(Debug, thiserror::Error)]
