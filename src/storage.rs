@@ -108,6 +108,12 @@ impl StoredPolicy {
         }
         let mut document = self.clone();
         document.revocations = Revocations::default();
+        // Publications have independent bounded envelopes. Charging their JSON
+        // byte-array expansion against the core budget makes a valid schema
+        // impossible to publish after it has already replaced the old epoch.
+        for publication in document.publications.values_mut() {
+            publication.cose = None;
+        }
         if serde_json::to_vec(&document)
             .map_err(|_| Error::Corrupt)?
             .len()

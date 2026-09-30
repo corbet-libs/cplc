@@ -235,3 +235,9 @@ change classifications, including hidden-field changes, under the current epoch.
 The existing current-schema snapshot remains available for cgrd. Archived versions
 do not grant grandfathering or permit issuing against an older schema. Archives
 share the existing document and entry bounds; they contain no member values.
+
+Schema changes validate the serialized schema and history publications before
+commit. The core policy document and each of the five signed publications have
+independent bounded size budgets: JSON byte-array expansion cannot consume the
+space needed for durable policy or the other publications. Rejected history
+updates leave the schema and epoch unchanged; revocation and refresh still work.

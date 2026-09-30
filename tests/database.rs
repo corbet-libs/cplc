@@ -472,3 +472,62 @@ async fn indexed_revocations_exceed_256_and_survive_reopening() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn bounded_schema_history_remains_publishable_after_rejection_and_restart() {
+    let (_dir, db, rules_db, mut policy) = local().await;
+    for version in 2..=5 {
+        let mut next = schema(version);
+        next.public[0].label = "x".repeat(180_000);
+        policy.set_schema(next).await.unwrap();
+    }
+    let epoch = policy.epoch(NOW).await.unwrap();
+    let mut oversized = schema(6);
+    oversized.public[0].label = "x".repeat(180_000);
+    assert!(policy.set_schema(oversized).await.is_err());
+    assert_eq!(policy.schema().unwrap().unwrap().version, 5);
+    assert_eq!(policy.epoch(NOW).await.unwrap(), epoch);
+    let kinds = [
+        SnapshotKind::Settings,
+        SnapshotKind::Schema,
+        SnapshotKind::SchemaVersions,
+        SnapshotKind::Communities,
+        SnapshotKind::RevocationList,
+    ];
+    for kind in kinds {
+        policy.publish(kind, NOW).await.unwrap();
+    }
+    let state = LibsqlStore::new(&db, COMMUNITY)
+        .unwrap()
+        .load()
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(serde_json::to_vec(&state).unwrap().len() > MAX_DOCUMENT_BYTES);
+    drop(policy);
+    let signer = csgn::PersistentSigner::open(
+        csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
+        COMMUNITY,
+        key(1),
+        day(NOW),
+    )
+    .await
+    .unwrap();
+    let mut reopened = Policy::open(
+        crbk::LibsqlStore::new(rules_db),
+        LibsqlStore::new(&db, COMMUNITY).unwrap(),
+        signer,
+    )
+    .await
+    .unwrap();
+    reopened.bump_epoch().await.unwrap();
+    for kind in kinds {
+        let bytes = reopened.publish(kind, NOW).await.unwrap();
+        let _: Snapshot<Value> = verify_snapshot(
+            reopened.key_ring().unwrap(),
+            &bytes,
+            expectation(kind, reopened.epoch(NOW).await.unwrap(), NOW),
+        )
+        .unwrap();
+    }
+}

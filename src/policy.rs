@@ -225,6 +225,19 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             changes: changes.clone(),
         });
         next.schema = Some(schema);
+        // Ensure both schema publications fit before changing durable policy.
+        // Use maximal counters so future refreshes cannot exceed the envelope.
+        encode_snapshot(&next, u64::MAX, u64::MAX, &next.schema)?;
+        encode_snapshot(
+            &next,
+            u64::MAX,
+            u64::MAX,
+            crate::SchemaVersions {
+                purpose: crate::SchemaVersionsPurpose::SchemaVersionsV1,
+                current: next.schema.as_ref().ok_or(Error::Missing)?.version,
+                versions: next.schema_versions.clone(),
+            },
+        )?;
         self.advance_epoch(&mut next).await?;
         self.commit(next).await?;
         Ok(changes)
