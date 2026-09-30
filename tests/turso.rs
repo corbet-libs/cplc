@@ -1,3 +1,5 @@
+//! Optional live Turso round trip; never configured with secrets in public CI.
+
 mod common;
 
 use common::*;

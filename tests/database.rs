@@ -1,3 +1,5 @@
+//! Real libSQL persistence, isolation, failure and cancellation integration tests.
+
 mod common;
 
 use std::sync::{
