@@ -149,10 +149,11 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     /// Resolve current settings without signing, publishing or recording a read.
     pub async fn settings(&self, now: u64) -> Result<crbk::Snapshot> {
         let state = self.current().await?;
-        Ok(self
-            .active(now)
-            .await?
-            .snapshot(&state.community, timestamp(now)?)?)
+        let active = self.active(now).await?;
+        let mut snapshot = active.snapshot(&state.community, timestamp(now)?)?;
+        snapshot.policy_epoch = effective_epoch(state.epoch, active.change.policy_epoch)?;
+        snapshot.issued = timestamp(day(now))?;
+        Ok(snapshot)
     }
 
     /// Append a prospective rulebook change through crbk. Caller authorization

@@ -222,3 +222,7 @@ cancellation. It is not acquired by pure lobby reads.
 Current-witness validation also requires the exact signed publication bytes
 stored by this policy owner. A document signed under a caller-selected foreign
 ring cannot copy current values/revision and extend the authenticated lifetime.
+
+The pure `settings` view carries the same effective epoch and day-rounded issued
+time as verified publications, including local revocation bumps; reading it
+does not publish or advance state.

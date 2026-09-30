@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 #[tokio::test]
 async fn publish_and_recover_all_four_kinds() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     policy
         .set_communities(BTreeSet::from([
             COMMUNITY.into(),
@@ -116,7 +116,7 @@ async fn delegate_null_force_and_pinned_resolution() {
 
 #[tokio::test]
 async fn credential_roundtrip_uses_verdict_and_lifetime_class() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let gates = [development_gate(i64::MAX)];
     let before = policy.key_ring().unwrap().to_cbor();
     for (class, validity) in [
@@ -146,7 +146,7 @@ async fn credential_roundtrip_uses_verdict_and_lifetime_class() {
 
 #[tokio::test]
 async fn a_missing_or_disabled_gate_never_gets_a_signature() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let decision = policy.may_test(subject(), "admit", &[], NOW).await.unwrap();
     assert!(!decision.allowed);
     assert!(!decision.missing.is_empty());
@@ -194,7 +194,7 @@ async fn maximum_age_and_proof_expiry_bound_the_entire_credential() {
         policy.issue_test(request(&[gate]), NOW).await,
         Err(Error::Denied(_))
     ));
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let cose = policy
         .issue_test(request(&[development_gate(101)]), NOW)
         .await
@@ -286,7 +286,7 @@ async fn credential_binding_and_duplicate_failures_are_closed_even_for_empty_pol
 
 #[tokio::test]
 async fn authorized_pins_and_devices_roundtrip_and_invalid_inputs_fail() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let gates = [development_gate(500)];
     let pins = [Pin {
         field: "weekends".into(),
@@ -334,7 +334,7 @@ async fn authorized_pins_and_devices_roundtrip_and_invalid_inputs_fail() {
 
 #[tokio::test]
 async fn schema_classification_versions_and_scope_are_owned_by_cshm() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     policy.publish(SnapshotKind::Schema, NOW).await.unwrap();
     let before = policy.epoch(NOW).await.unwrap();
     let mut next = schema(2);
@@ -373,7 +373,7 @@ async fn schema_classification_versions_and_scope_are_owned_by_cshm() {
 
 #[tokio::test]
 async fn revocations_advance_epochs_and_block_members_and_devices() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let old_epoch = policy.epoch(NOW).await.unwrap();
     let old = policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
     policy
@@ -440,7 +440,7 @@ async fn revocations_advance_epochs_and_block_members_and_devices() {
 
 #[tokio::test]
 async fn scheduled_policy_does_not_activate_early_and_always_advances_epoch() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let before = policy.epoch(NOW).await.unwrap();
     let mut rules = book(admission());
     rules
@@ -486,7 +486,7 @@ async fn scheduled_policy_does_not_activate_early_and_always_advances_epoch() {
 
 #[tokio::test]
 async fn scheduling_rejects_notice_violations_and_nonadvancing_epochs() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let mut update = change(book(admission()), 2, 199);
     update.notice_seconds = 100;
     assert!(matches!(
@@ -509,7 +509,7 @@ async fn scheduling_rejects_notice_violations_and_nonadvancing_epochs() {
 
 #[tokio::test]
 async fn signatures_enforce_kind_scope_epoch_revision_and_tamper_rejection() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let epoch = policy.epoch(NOW).await.unwrap();
     let cose = policy.publish(SnapshotKind::Schema, NOW).await.unwrap();
     assert!(
@@ -558,7 +558,7 @@ async fn signatures_enforce_kind_scope_epoch_revision_and_tamper_rejection() {
 
 #[tokio::test]
 async fn rotate_retains_old_credential_and_uses_new_key() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let old = policy
         .issue_test(request(&[development_gate(500)]), NOW)
         .await
@@ -647,7 +647,7 @@ async fn wrong_signer_scope_and_missing_configuration_fail() {
 
 #[tokio::test]
 async fn limits_and_extreme_time_fail_without_logging_input() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let gates = vec![development_gate(500); MAX_ENTRIES + 1];
     assert!(matches!(
         policy.issue_test(request(&gates), NOW).await,
@@ -716,7 +716,7 @@ async fn malformed_signed_snapshot_payloads_are_rejected() {
 
 #[tokio::test]
 async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let initial = policy.trust_manifest(NOW).await.unwrap();
     let verified = policy
         .key_ring()
@@ -811,7 +811,7 @@ async fn empty_policy_never_issues_to_pending_lapsed_or_released_members() {
 
 #[tokio::test]
 async fn an_epoch_jump_cannot_exhaust_revocation_capacity() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     for epoch in [3, i64::MAX as u64 - 10] {
         assert!(matches!(
             policy
@@ -835,7 +835,7 @@ async fn an_epoch_jump_cannot_exhaust_revocation_capacity() {
 
 #[tokio::test]
 async fn credential_debug_omits_member_handle_pins_and_devices() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let signed = policy
         .issue_test(request(&[development_gate(500)]), NOW)
         .await
@@ -869,7 +869,7 @@ async fn global_issuer_namespace_is_unavailable_to_communities() {
 
 #[tokio::test]
 async fn settings_witness_preserves_the_envelope_and_rejects_stale_publications() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let verified = policy.verified_settings(NOW).await.unwrap();
     assert_eq!(verified.settings().issued, day(NOW) as i64);
     assert_eq!(
@@ -896,7 +896,7 @@ async fn settings_witness_preserves_the_envelope_and_rejects_stale_publications(
 
 #[tokio::test]
 async fn current_settings_check_does_not_publish_or_advance_epoch() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let epoch = policy.epoch(NOW).await.unwrap();
     let settings = policy.settings(NOW).await.unwrap();
     assert_eq!(settings.community, COMMUNITY);
@@ -921,7 +921,7 @@ async fn current_settings_check_does_not_publish_or_advance_epoch() {
 
 #[tokio::test]
 async fn a_foreign_signer_cannot_extend_the_current_publication() {
-    let mut policy = memory().await;
+    let mut policy = memory_with(book(admission())).await;
     let current = policy.verified_settings(NOW).await.unwrap();
     let mut foreign = csgn::PersistentSigner::create(
         csgn::MemoryStore::default(),
@@ -958,4 +958,25 @@ async fn a_foreign_signer_cannot_extend_the_current_publication() {
         Err(Error::Verification)
     ));
     policy.validate_snapshot(&current, NOW).await.unwrap();
+}
+
+#[tokio::test]
+async fn pure_settings_carries_the_same_effective_epoch_as_verified_publications() {
+    let mut policy = memory_with(book(admission())).await;
+    policy.bump_epoch().await.unwrap();
+    let before = policy.epoch(NOW).await.unwrap();
+    let settings = policy.settings(NOW).await.unwrap();
+    assert_eq!(settings.policy_epoch, before);
+    assert_eq!(settings.issued, day(NOW) as i64);
+    assert!(
+        policy
+            .published(SnapshotKind::Settings, NOW)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let verified = policy.verified_settings(NOW).await.unwrap();
+    assert_eq!(verified.settings().policy_epoch, settings.policy_epoch);
+    assert_eq!(verified.settings().content, settings.content);
+    assert_eq!(policy.epoch(NOW).await.unwrap(), before);
 }
