@@ -710,3 +710,77 @@ async fn malformed_signed_snapshot_payloads_are_rejected() {
         );
     }
 }
+
+#[tokio::test]
+async fn sparse_door_edits_and_signed_trust_manifest_preserve_boundaries() {
+    let mut policy = memory().await;
+    let initial = policy.trust_manifest(NOW).await.unwrap();
+    let verified = policy
+        .key_ring()
+        .unwrap()
+        .verify(&initial, csgn::Kind::SettingsSnapshot, NOW)
+        .unwrap();
+    let first: TrustManifest = serde_json::from_slice(verified.payload()).unwrap();
+    assert_eq!(first.purpose, TrustPurpose::CommunityTrustV1);
+    assert_eq!(first.community, COMMUNITY);
+    assert!(serde_json::from_slice::<Snapshot<Value>>(verified.payload()).is_err());
+    assert_eq!(
+        csgn::KeyRing::from_cbor(&first.key_ring).unwrap().issuer(),
+        COMMUNITY
+    );
+    policy
+        .edit_setting(
+            "quota",
+            SettingEdit::Community(Some(json!(15))),
+            NOW,
+            NOW,
+            0,
+        )
+        .await
+        .unwrap();
+    policy
+        .edit_setting(
+            "quota",
+            SettingEdit::Platform(Some(crbk::PlatformValue {
+                value: json!(25),
+                force: true,
+            })),
+            NOW,
+            NOW,
+            0,
+        )
+        .await
+        .unwrap();
+    let epoch = policy.epoch(NOW).await.unwrap();
+    assert!(epoch > first.policy_epoch);
+    let settings = policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
+    let settings: Snapshot<crbk::Values> = verify_snapshot(
+        policy.key_ring().unwrap(),
+        &settings,
+        expectation(SnapshotKind::Settings, epoch, NOW),
+    )
+    .unwrap();
+    assert_eq!(settings.content["quota"], json!(25));
+    assert!(
+        policy
+            .edit_setting(
+                "quota",
+                SettingEdit::Community(Some(json!(1000))),
+                NOW,
+                NOW,
+                0
+            )
+            .await
+            .is_err()
+    );
+    let next = policy.trust_manifest(NOW).await.unwrap();
+    let verified = policy
+        .key_ring()
+        .unwrap()
+        .verify(&next, csgn::Kind::SettingsSnapshot, NOW)
+        .unwrap();
+    let next: TrustManifest = serde_json::from_slice(verified.payload()).unwrap();
+    assert!(next.revision > first.revision);
+    assert_eq!(next.policy_epoch, epoch);
+    assert!(policy.revocations().unwrap().members.is_empty());
+}

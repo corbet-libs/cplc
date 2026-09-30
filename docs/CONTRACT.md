@@ -128,3 +128,18 @@ or silent empty-gate fallback is provided. Cross-facade wire integration remains
 an explicit downstream task. Emergency signing-key revocation and rollback-proof
 recovery remain csgn/service boundaries. The development test gate is test-only;
 there are no provider calls or production test-gate features.
+
+## Door integration
+
+`edit_setting` changes one community deviation or root platform value through
+crbk, preserving all other sparse layers and advancing the policy epoch.
+The service authorizes the requested layer and supplies notice timing.
+`revocations` exposes current policy state to coordinated service writers.
+
+`trust_manifest` signs a typed `TrustManifest` with a fixed `cplc.trust.v1`
+purpose, community, durable policy revision, effective epoch, current schema
+version and canonical public key ring. Its COSE kind is SettingsSnapshot, but
+its distinct strict top-level shape prevents decoding as a flat settings
+snapshot. It is an aggregate trust publication, never a member query. Signatures
+use csgn's durable retention path. Consumers still need an authenticated initial
+key ring and freshness floors; a self-signed ring is not a bootstrap trust root.

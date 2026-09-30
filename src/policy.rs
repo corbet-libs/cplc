@@ -234,6 +234,73 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         self.commit(next).await
     }
 
+    /// Edit one sparse setting through crbk, retaining every other layer.
+    /// Authorization of platform versus community edits belongs to the door.
+    pub async fn edit_setting(
+        &mut self,
+        key: &str,
+        edit: crate::SettingEdit,
+        now: u64,
+        effective_at: u64,
+        notice_seconds: u64,
+    ) -> Result<crbk::Revision> {
+        let state = self.current().await?;
+        let latest = self
+            .rules
+            .load(&state.community, Selection::Latest)
+            .await?
+            .ok_or(Error::Missing)?;
+        let mut rulebook = latest.change.rulebook;
+        match edit {
+            crate::SettingEdit::Community(value) => rulebook.set_community(key, value)?,
+            crate::SettingEdit::Platform(value) => rulebook.set_platform(key, value)?,
+        }
+        self.schedule_rules(
+            Some(latest.revision),
+            crbk::Change {
+                rulebook,
+                announced_at: timestamp(now)?,
+                effective_at: timestamp(effective_at)?,
+                notice_seconds,
+                policy_epoch: next_counter(latest.change.policy_epoch)?,
+            },
+        )
+        .await
+    }
+
+    /// Current revocation state, with no member activity history.
+    pub fn revocations(&self) -> Result<&Revocations> {
+        Ok(&self.state()?.revocations)
+    }
+
+    /// Sign current public keys, schema version and policy epoch for trust consumers.
+    /// This is a typed SettingsSnapshot envelope with a distinct top-level purpose,
+    /// not an arbitrary-payload signing API and not a flat settings snapshot.
+    pub async fn trust_manifest(&mut self, now: u64) -> Result<Vec<u8>> {
+        let state = self.current().await?.clone();
+        let active = self.active(now).await?;
+        let manifest = crate::TrustManifest {
+            purpose: crate::TrustPurpose::CommunityTrustV1,
+            community: state.community.clone(),
+            revision: state.revision,
+            policy_epoch: effective_epoch(state.epoch, active.change.policy_epoch)?,
+            key_ring: self.key_ring()?.to_cbor(),
+            schema_version: state.schema.as_ref().ok_or(Error::Missing)?.version,
+        };
+        let until = self
+            .validity_limit(now, state.config.snapshot_validity, &active)
+            .await?;
+        self.signer
+            .sign(
+                csgn::Kind::SettingsSnapshot,
+                &serde_json::to_vec(&manifest).map_err(|_| Error::Corrupt)?,
+                now,
+                until,
+            )
+            .await
+            .map_err(|_| Error::Signing)
+    }
+
     /// Invalidate prior epochs without changing settings or storing member events.
     pub async fn bump_epoch(&mut self) -> Result<()> {
         let mut next = self.current().await?.clone();

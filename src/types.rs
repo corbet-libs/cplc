@@ -172,3 +172,35 @@ pub struct CredentialRequest<'a> {
     /// Authorized public device keys, never passkey secrets.
     pub devices: &'a [[u8; 32]],
 }
+
+/// Signed transport manifest. The fixed purpose separates it from flat settings.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrustManifest {
+    /// Always the single supported manifest format.
+    pub purpose: TrustPurpose,
+    /// Canonical community and signer issuer.
+    pub community: String,
+    /// Durable policy-state revision.
+    pub revision: u64,
+    /// Effective policy epoch, including activated rulebook changes.
+    pub policy_epoch: u64,
+    /// Current public key ring, in csgn's canonical encoding.
+    pub key_ring: Vec<u8>,
+    /// Current schema version.
+    pub schema_version: u32,
+}
+/// Domain separation for the signed manifest payload.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrustPurpose {
+    /// Version-one community trust publication.
+    #[serde(rename = "cplc.trust.v1")]
+    CommunityTrustV1,
+}
+/// A sparse setting edit. The outer service authenticates the allowed layer.
+pub enum SettingEdit {
+    /// Community deviation; None removes the row, Some(Null) terminates resolution.
+    Community(Option<serde_json::Value>),
+    /// Root-only platform value and force flag.
+    Platform(Option<crbk::PlatformValue>),
+}
