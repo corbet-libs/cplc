@@ -228,3 +228,10 @@ ring cannot copy current values/revision and extend the authenticated lifetime.
 The pure `settings` view carries the same effective epoch and day-rounded issued
 time as verified publications, including local revocation bumps; reading it
 does not publish or advance state.
+
+Schema-version publication uses the distinct `cplc.schema-versions.v1` purpose
+inside a SchemaSnapshot envelope. It retains public schema definitions and cshm's
+change classifications, including hidden-field changes, under the current epoch.
+The existing current-schema snapshot remains available for cgrd. Archived versions
+do not grant grandfathering or permit issuing against an older schema. Archives
+share the existing document and entry bounds; they contain no member values.

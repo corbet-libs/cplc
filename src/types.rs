@@ -49,6 +49,8 @@ pub enum SnapshotKind {
     Settings,
     /// Validated cshm profile schema.
     Schema,
+    /// All retained schema versions and their cshm change classifications.
+    SchemaVersions,
     /// Explicitly supplied public community identifiers, never memberships.
     Communities,
     /// Current community revocations, never global suspension data.
@@ -60,7 +62,7 @@ impl SnapshotKind {
     pub fn signing_kind(self) -> csgn::Kind {
         match self {
             Self::Settings => csgn::Kind::SettingsSnapshot,
-            Self::Schema => csgn::Kind::SchemaSnapshot,
+            Self::Schema | Self::SchemaVersions => csgn::Kind::SchemaSnapshot,
             Self::Communities => csgn::Kind::CommunitiesSnapshot,
             Self::RevocationList => csgn::Kind::RevocationListSnapshot,
         }
@@ -226,4 +228,32 @@ impl std::fmt::Debug for Credential {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Credential").finish_non_exhaustive()
     }
+}
+
+/// One validated public schema definition and its predecessor classification.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaVersion {
+    /// Profile definition only; never a member's profile values.
+    pub schema: cshm::Schema,
+    /// cshm's classification against the preceding retained version.
+    pub changes: Option<cshm::ChangeSet>,
+}
+/// Domain separation for the schema version collection.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SchemaVersionsPurpose {
+    /// Version-one archive of public schema definitions.
+    #[serde(rename = "cplc.schema-versions.v1")]
+    SchemaVersionsV1,
+}
+/// Public schema history signed under the current community policy epoch.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaVersions {
+    /// Prevent confusing this collection with one current schema snapshot.
+    pub purpose: SchemaVersionsPurpose,
+    /// Schema required for new credentials; history alone grants no grandfathering.
+    pub current: u32,
+    /// Ordered by increasing schema version, with no member information.
+    pub versions: Vec<SchemaVersion>,
 }

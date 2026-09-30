@@ -40,6 +40,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             epoch: 1,
             config,
             schema: None,
+            schema_versions: Vec::new(),
             communities: BTreeSet::new(),
             revocations: Revocations::default(),
             publications: BTreeMap::new(),
@@ -209,6 +210,20 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             .as_ref()
             .map(|old| cshm::classify_changes(old, &schema).map_err(|_| Error::Schema))
             .transpose()?;
+        // Old stored documents contain only the current schema; preserve it as
+        // the initial archive entry when they first receive an update.
+        if next.schema_versions.is_empty()
+            && let Some(previous) = &next.schema
+        {
+            next.schema_versions.push(crate::SchemaVersion {
+                schema: previous.clone(),
+                changes: None,
+            });
+        }
+        next.schema_versions.push(crate::SchemaVersion {
+            schema: schema.clone(),
+            changes: changes.clone(),
+        });
         next.schema = Some(schema);
         self.advance_epoch(&mut next).await?;
         self.commit(next).await?;
@@ -399,6 +414,27 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
                 epoch,
                 next.schema.clone().ok_or(Error::Missing)?,
             )?,
+            SnapshotKind::SchemaVersions => {
+                let schema = next.schema.as_ref().ok_or(Error::Missing)?;
+                let versions = if next.schema_versions.is_empty() {
+                    vec![crate::SchemaVersion {
+                        schema: schema.clone(),
+                        changes: None,
+                    }]
+                } else {
+                    next.schema_versions.clone()
+                };
+                encode_snapshot(
+                    &next,
+                    revision,
+                    epoch,
+                    crate::SchemaVersions {
+                        purpose: crate::SchemaVersionsPurpose::SchemaVersionsV1,
+                        current: schema.version,
+                        versions,
+                    },
+                )?
+            }
             SnapshotKind::Communities => {
                 encode_snapshot(&next, revision, epoch, &next.communities)?
             }

@@ -93,3 +93,10 @@ migrations and retains synthetic rows. Never put credentials in the repo or CI.
 
 Copyright 2026 Julian Y. Richard Corbet. Licensed under the
 [Functional Source License, Version 1.1, ALv2 Future License](LICENSE.md).
+
+Schema-version publication uses the distinct `cplc.schema-versions.v1` purpose
+inside a SchemaSnapshot envelope. It retains public schema definitions and cshm's
+change classifications, including hidden-field changes, under the current epoch.
+The existing current-schema snapshot remains available for cgrd. Archived versions
+do not grant grandfathering or permit issuing against an older schema. Archives
+share the existing document and entry bounds; they contain no member values.

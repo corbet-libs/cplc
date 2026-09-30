@@ -9,7 +9,7 @@ use cplc::{crbk, csgn, cshm, *};
 use serde_json::{Value, json};
 
 #[tokio::test]
-async fn publish_and_recover_all_four_kinds() {
+async fn publish_and_recover_all_snapshot_kinds() {
     let mut policy = memory().await;
     policy
         .set_communities(BTreeSet::from([
@@ -22,6 +22,7 @@ async fn publish_and_recover_all_four_kinds() {
     for kind in [
         SnapshotKind::Settings,
         SnapshotKind::Schema,
+        SnapshotKind::SchemaVersions,
         SnapshotKind::Communities,
         SnapshotKind::RevocationList,
     ] {
@@ -979,4 +980,45 @@ async fn pure_settings_carries_the_same_effective_epoch_as_verified_publications
     assert_eq!(verified.settings().policy_epoch, settings.policy_epoch);
     assert_eq!(verified.settings().content, settings.content);
     assert_eq!(policy.epoch(NOW).await.unwrap(), before);
+}
+
+#[tokio::test]
+async fn publish_schema_versions_with_the_original_change_classifications() {
+    let mut policy = memory().await;
+    let mut second = schema(2);
+    second.private = std::mem::take(&mut second.public);
+    let changes = policy.set_schema(second.clone()).await.unwrap().unwrap();
+    let signed = policy
+        .publish(SnapshotKind::SchemaVersions, NOW)
+        .await
+        .unwrap();
+    let snapshot: Snapshot<SchemaVersions> = verify_snapshot(
+        policy.key_ring().unwrap(),
+        &signed,
+        expectation(
+            SnapshotKind::SchemaVersions,
+            policy.epoch(NOW).await.unwrap(),
+            NOW,
+        ),
+    )
+    .unwrap();
+    assert_eq!(snapshot.content.current, 2);
+    assert_eq!(
+        snapshot.content.purpose,
+        SchemaVersionsPurpose::SchemaVersionsV1
+    );
+    assert_eq!(snapshot.content.versions.len(), 2);
+    assert_eq!(snapshot.content.versions[0].schema, schema(1));
+    assert_eq!(snapshot.content.versions[0].changes, None);
+    assert_eq!(snapshot.content.versions[1].schema, second);
+    assert_eq!(snapshot.content.versions[1].changes, Some(changes));
+    assert!(
+        verify_snapshot::<cshm::Schema>(
+            policy.key_ring().unwrap(),
+            &signed,
+            expectation(SnapshotKind::Schema, policy.epoch(NOW).await.unwrap(), NOW)
+        )
+        .is_err()
+    );
+    assert!(policy.set_schema(schema(1)).await.is_err());
 }

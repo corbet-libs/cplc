@@ -30,6 +30,8 @@ pub struct StoredPolicy {
     pub(crate) epoch: u64,
     pub(crate) config: Config,
     pub(crate) schema: Option<cshm::Schema>,
+    #[serde(default)]
+    pub(crate) schema_versions: Vec<crate::SchemaVersion>,
     pub(crate) communities: BTreeSet<String>,
     pub(crate) revocations: Revocations,
     pub(crate) publications: BTreeMap<SnapshotKind, Publication>,
@@ -70,6 +72,29 @@ impl StoredPolicy {
                 return Err(Error::Corrupt);
             }
             schema.validate_definition().map_err(|_| Error::Corrupt)?;
+        }
+        if self.schema_versions.len() > MAX_ENTRIES {
+            return Err(Error::Corrupt);
+        }
+        let mut previous: Option<&cshm::Schema> = None;
+        for version in &self.schema_versions {
+            let schema = &version.schema;
+            if schema.community != self.community
+                || schema.public.len() + schema.private.len() > MAX_ENTRIES
+            {
+                return Err(Error::Corrupt);
+            }
+            schema.validate_definition().map_err(|_| Error::Corrupt)?;
+            let expected = previous
+                .map(|old| cshm::classify_changes(old, schema).map_err(|_| Error::Corrupt))
+                .transpose()?;
+            if version.changes != expected {
+                return Err(Error::Corrupt);
+            }
+            previous = Some(schema);
+        }
+        if previous.is_some() && previous != self.schema.as_ref() {
+            return Err(Error::Corrupt);
         }
         for publication in self.publications.values() {
             if publication.revision == 0
