@@ -425,3 +425,49 @@ async fn storage_refuses_rewriting_admission_configuration() {
         Err(Error::Corrupt)
     ));
 }
+
+#[tokio::test]
+async fn indexed_revocations_exceed_256_and_survive_reopening() {
+    let (_dir, db, rules_db, mut policy) = local().await;
+    let mut revocations = Revocations::default();
+    for i in 0..257u32 {
+        revocations.members.insert(format!("member-{i}"));
+        let mut device = [0; 32];
+        device[..4].copy_from_slice(&i.to_be_bytes());
+        revocations.devices.insert(device);
+    }
+    policy.set_revocations(revocations.clone()).await.unwrap();
+    drop(policy);
+    let signer = csgn::PersistentSigner::open(
+        csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
+        COMMUNITY,
+        key(1),
+        NOW,
+    )
+    .await
+    .unwrap();
+    let mut policy = Policy::open(
+        crbk::LibsqlStore::new(rules_db),
+        LibsqlStore::new(&db, COMMUNITY).unwrap(),
+        signer,
+    )
+    .await
+    .unwrap();
+    assert_eq!(policy.revocations().unwrap(), &revocations);
+    let mut input = request(&[]);
+    input.subject.id = "member-256";
+    assert!(matches!(
+        policy.issue(input, NOW).await,
+        Err(Error::Revoked)
+    ));
+    policy
+        .set_revocations(Revocations::default())
+        .await
+        .unwrap();
+    assert!(policy.revocations().unwrap().members.is_empty());
+    LibsqlStore::new(&db, COMMUNITY)
+        .unwrap()
+        .check_query_plans()
+        .await
+        .unwrap();
+}

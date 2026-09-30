@@ -42,3 +42,53 @@ pub fn verify_snapshot<T: DeserializeOwned>(
     }
     Ok(snapshot)
 }
+
+/// Authenticated settings and envelope metadata. Only signature verification or
+/// the current policy publisher can construct this capability.
+///
+/// ```compile_fail
+/// let unverified: crbk::Snapshot = todo!();
+/// let verified: cplc::VerifiedSnapshot = unverified.into();
+/// ```
+#[derive(Clone)]
+pub struct VerifiedSnapshot {
+    pub(crate) snapshot: crbk::Snapshot,
+    pub(crate) valid_until: u64,
+}
+
+impl VerifiedSnapshot {
+    /// Immutable settings for gate execution; mutation cannot alter this witness.
+    pub fn settings(&self) -> &crbk::Snapshot {
+        &self.snapshot
+    }
+    /// Exclusive authenticated publication expiry.
+    pub fn valid_until(&self) -> u64 {
+        self.valid_until
+    }
+}
+
+/// Verify a settings publication while retaining all authenticated metadata.
+pub fn verify_settings(
+    ring: &csgn::KeyRing,
+    cose: &[u8],
+    expected: SnapshotExpectation<'_>,
+) -> Result<VerifiedSnapshot> {
+    if expected.kind != SnapshotKind::Settings {
+        return Err(Error::Verification);
+    }
+    let verified = ring
+        .verify(cose, csgn::Kind::SettingsSnapshot, expected.now)
+        .map_err(|_| Error::Verification)?;
+    let document: Snapshot<crbk::Values> = verify_snapshot(ring, cose, expected)?;
+    Ok(VerifiedSnapshot {
+        snapshot: crbk::Snapshot {
+            community: document.community,
+            kind: crbk::SnapshotKind::Settings,
+            revision: document.revision,
+            policy_epoch: document.policy_epoch,
+            issued: crate::timestamp(verified.issued_at())?,
+            content: document.content,
+        },
+        valid_until: verified.valid_until(),
+    })
+}

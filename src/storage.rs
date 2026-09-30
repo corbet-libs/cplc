@@ -57,8 +57,6 @@ impl StoredPolicy {
             || self.epoch == 0
             || self.epoch > i64::MAX as u64
             || self.communities.len() > MAX_ENTRIES
-            || self.revocations.members.len() > MAX_ENTRIES
-            || self.revocations.devices.len() > MAX_ENTRIES
         {
             return Err(Error::Corrupt);
         }
@@ -83,7 +81,13 @@ impl StoredPolicy {
                 return Err(Error::Corrupt);
             }
         }
-        if serde_json::to_vec(self).map_err(|_| Error::Corrupt)?.len() > MAX_DOCUMENT_BYTES {
+        let mut document = self.clone();
+        document.revocations = Revocations::default();
+        if serde_json::to_vec(&document)
+            .map_err(|_| Error::Corrupt)?
+            .len()
+            > MAX_DOCUMENT_BYTES
+        {
             return Err(Error::Invalid("policy size"));
         }
         Ok(())

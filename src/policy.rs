@@ -221,9 +221,6 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     /// Global suspension belongs exclusively to cglb.
     pub async fn set_revocations(&mut self, revocations: Revocations) -> Result<()> {
         let mut next = self.current().await?.clone();
-        if revocations.members.len() > MAX_ENTRIES || revocations.devices.len() > MAX_ENTRIES {
-            return Err(Error::Invalid("revocation count"));
-        }
         for member in &revocations.members {
             identifier(member)?;
         }
@@ -371,6 +368,50 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         );
         self.commit(next).await?;
         Ok(cose)
+    }
+
+    /// Publish and authenticate the current settings, carrying the effective epoch.
+    pub async fn verified_settings(&mut self, now: u64) -> Result<crate::VerifiedSnapshot> {
+        let cose = match self.published(SnapshotKind::Settings, now).await? {
+            Some(cose) => cose,
+            None => self.publish(SnapshotKind::Settings, now).await?,
+        };
+        let state = self.current().await?;
+        crate::verify_settings(
+            self.key_ring()?,
+            &cose,
+            crate::SnapshotExpectation {
+                community: &state.community,
+                kind: SnapshotKind::Settings,
+                minimum_revision: state.publications[&SnapshotKind::Settings].revision,
+                policy_epoch: self.epoch(now).await?,
+                now,
+            },
+        )
+    }
+
+    /// Reject stale, foreign or caller-altered policy inputs before using receipts.
+    pub async fn validate_snapshot(
+        &self,
+        snapshot: &crate::VerifiedSnapshot,
+        now: u64,
+    ) -> Result<()> {
+        let state = self.current().await?;
+        let active = self.active(now).await?;
+        let current = active.snapshot(&state.community, timestamp(now)?)?;
+        if snapshot.snapshot.community != state.community
+            || snapshot.snapshot.policy_epoch != self.epoch(now).await?
+            || snapshot.snapshot.issued > timestamp(now)?
+            || snapshot.valid_until <= now
+            || snapshot.snapshot.content != current.content
+            || state
+                .publications
+                .get(&SnapshotKind::Settings)
+                .is_none_or(|p| p.revision != snapshot.snapshot.revision || p.cose.is_none())
+        {
+            return Err(Error::Verification);
+        }
+        Ok(())
     }
 
     /// Read the exact latest publication only while it remains valid for current

@@ -11,7 +11,7 @@ mod verification;
 pub use policy::Policy;
 pub use storage::{LibsqlStore, MemoryStore, SCHEMA, Storage, StoredPolicy};
 pub use types::*;
-pub use verification::{SnapshotExpectation, verify_snapshot};
+pub use verification::{SnapshotExpectation, VerifiedSnapshot, verify_settings, verify_snapshot};
 
 /// Leaf APIs used by the composition root; no alternate policy/crypto engine.
 pub use {crbk, crlt, csgn, cshm};

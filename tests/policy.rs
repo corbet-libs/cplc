@@ -863,3 +863,27 @@ async fn global_issuer_namespace_is_unavailable_to_communities() {
         Err(Error::Invalid(_))
     ));
 }
+
+#[tokio::test]
+async fn settings_witness_preserves_the_envelope_and_rejects_stale_publications() {
+    let mut policy = memory().await;
+    let verified = policy.verified_settings(NOW).await.unwrap();
+    assert_eq!(verified.settings().issued, NOW as i64);
+    assert_eq!(
+        verified.settings().policy_epoch,
+        policy.epoch(NOW).await.unwrap()
+    );
+    assert_eq!(verified.valid_until(), NOW + config().snapshot_validity);
+    policy.validate_snapshot(&verified, NOW).await.unwrap();
+    policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
+    assert!(matches!(
+        policy.validate_snapshot(&verified, NOW).await,
+        Err(Error::Verification)
+    ));
+    let current = policy.verified_settings(NOW).await.unwrap();
+    policy.bump_epoch().await.unwrap();
+    assert!(matches!(
+        policy.validate_snapshot(&current, NOW).await,
+        Err(Error::Verification)
+    ));
+}

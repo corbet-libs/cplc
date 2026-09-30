@@ -143,3 +143,17 @@ its distinct strict top-level shape prevents decoding as a flat settings
 snapshot. It is an aggregate trust publication, never a member query. Signatures
 use csgn's durable retention path. Consumers still need an authenticated initial
 key ring and freshness floors; a self-signed ring is not a bootstrap trust root.
+
+## Verified settings and revocation storage
+
+`verified_settings` and `verify_settings` return an opaque `VerifiedSnapshot`.
+Its immutable crbk view retains the authenticated issuance time and effective
+epoch; its exclusive expiry stays attached to the witness. `validate_snapshot`
+requires the current publication revision, content, epoch and validity. A raw
+snapshot cannot be converted into this type; a compile-fail doctest enforces it.
+
+Revocations use indexed `cplc_revocation` rows, committed atomically with the
+policy epoch. Reads page over the primary key in batches of 256; that batch size
+is not a revocation capacity limit. Memory storage enforces the same unbounded
+set semantics. Published documents retain their transport size bound. A large
+revocation set cannot prevent committing further revocations or advancing epochs.

@@ -12,7 +12,16 @@ CREATE TABLE cplc_policy (
     document TEXT NOT NULL,
     PRIMARY KEY (community_id, slot)
 ) WITHOUT ROWID;
+CREATE TABLE cplc_revocation (
+    community_id TEXT NOT NULL,
+    entry TEXT NOT NULL,
+    PRIMARY KEY (community_id, entry)
+) WITHOUT ROWID;
 ";
+
+const REVOKED: &str = "SELECT entry FROM cplc_revocation WHERE entry > ?1 ORDER BY entry LIMIT 256";
+const REVOKE: &str = "INSERT INTO cplc_revocation (entry) VALUES (?1)";
+const RESTORE: &str = "DELETE FROM cplc_revocation WHERE entry = ?1";
 
 const SELECT: &str = "SELECT revision, document FROM cplc_policy WHERE slot = ?1";
 const INSERT: &str = "INSERT INTO cplc_policy (slot, revision, document) VALUES (?1, ?2, ?3)";
@@ -56,8 +65,66 @@ impl LibsqlStore {
             .map_err(|_| Error::Storage)?
             .assert_indexed()
             .map_err(|_| Error::Storage)?;
+        for sql in [REVOKED, REVOKE, RESTORE] {
+            self.scope
+                .explain(sql, ["member:example"])
+                .await
+                .map_err(|_| Error::Storage)?
+                .assert_indexed()
+                .map_err(|_| Error::Storage)?;
+        }
         Ok(())
     }
+}
+
+fn entries(revocations: &crate::Revocations) -> Result<std::collections::BTreeSet<String>> {
+    let mut entries: std::collections::BTreeSet<_> = revocations
+        .members
+        .iter()
+        .map(|member| format!("member:{member}"))
+        .collect();
+    for device in &revocations.devices {
+        entries.insert(format!(
+            "device:{}",
+            serde_json::to_string(device).map_err(|_| Error::Corrupt)?
+        ));
+    }
+    Ok(entries)
+}
+
+async fn read(tx: &mut crlt::Transaction, scope: &str) -> Result<Option<StoredPolicy>> {
+    let mut state = decode(
+        &tx.query(SELECT, [1i64]).await.map_err(|_| Error::Storage)?,
+        scope,
+    )?;
+    if let Some(state) = &mut state {
+        let mut after = String::new();
+        loop {
+            let rows = tx
+                .query(REVOKED, [after.as_str()])
+                .await
+                .map_err(|_| Error::Storage)?;
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                let entry = row.get_str(0).map_err(|_| Error::Corrupt)?;
+                if let Some(member) = entry.strip_prefix("member:") {
+                    state.revocations.members.insert(member.to_owned());
+                } else if let Some(device) = entry.strip_prefix("device:") {
+                    state
+                        .revocations
+                        .devices
+                        .insert(serde_json::from_str(device).map_err(|_| Error::Corrupt)?);
+                } else {
+                    return Err(Error::Corrupt);
+                }
+                after = entry.to_owned();
+            }
+        }
+        state.validate()?;
+    }
+    Ok(state)
 }
 
 fn decode(rows: &[crlt::Row], scope: &str) -> Result<Option<StoredPolicy>> {
@@ -83,23 +150,35 @@ impl Storage for LibsqlStore {
         &self.name
     }
     async fn load(&self) -> Result<Option<StoredPolicy>> {
-        decode(
-            &self
-                .scope
-                .query(SELECT, [1i64])
-                .await
-                .map_err(|_| Error::Storage)?,
-            &self.name,
-        )
+        let mut tx = self.scope.tx().await.map_err(|_| Error::Storage)?;
+        let state = read(&mut tx, &self.name).await?;
+        tx.commit().await.map_err(|_| Error::Storage)?;
+        Ok(state)
     }
     async fn compare_exchange(&self, expected: Option<u64>, next: &StoredPolicy) -> Result<()> {
         let mut tx = self.scope.tx().await.map_err(|_| Error::Storage)?;
-        let previous = decode(
-            &tx.query(SELECT, [1i64]).await.map_err(|_| Error::Storage)?,
-            &self.name,
-        )?;
+        let previous = read(&mut tx, &self.name).await?;
         validate_transition(&self.name, previous.as_ref(), expected, next)?;
-        let document = serde_json::to_string(next).map_err(|_| Error::Corrupt)?;
+        let old_entries = entries(
+            &previous
+                .as_ref()
+                .map(|p| p.revocations.clone())
+                .unwrap_or_default(),
+        )?;
+        let new_entries = entries(&next.revocations)?;
+        for entry in old_entries.difference(&new_entries) {
+            tx.execute(RESTORE, [entry.as_str()])
+                .await
+                .map_err(|_| Error::Storage)?;
+        }
+        for entry in new_entries.difference(&old_entries) {
+            tx.execute(REVOKE, [entry.as_str()])
+                .await
+                .map_err(|_| Error::Storage)?;
+        }
+        let mut document = next.clone();
+        document.revocations = crate::Revocations::default();
+        let document = serde_json::to_string(&document).map_err(|_| Error::Corrupt)?;
         let count = match expected {
             None => {
                 tx.execute(INSERT, params![1i64, next.revision as i64, document])
