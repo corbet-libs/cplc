@@ -472,16 +472,16 @@ async fn scheduled_policy_does_not_activate_early_and_always_advances_epoch() {
         200
     );
     assert!(policy.epoch(200).await.unwrap() > immediate);
+    assert_eq!(
+        policy.published(SnapshotKind::Settings, 200).await.unwrap(),
+        None
+    );
     assert!(matches!(
         policy
             .issue_test(request(&[development_gate(500)]), 200)
             .await,
         Err(Error::Denied(_))
     ));
-    assert_eq!(
-        policy.published(SnapshotKind::Settings, 200).await.unwrap(),
-        None
-    );
 }
 
 #[tokio::test]
@@ -917,4 +917,45 @@ async fn current_settings_check_does_not_publish_or_advance_epoch() {
     )
     .unwrap();
     assert_eq!(settings.content, view.content);
+}
+
+#[tokio::test]
+async fn a_foreign_signer_cannot_extend_the_current_publication() {
+    let mut policy = memory().await;
+    let current = policy.verified_settings(NOW).await.unwrap();
+    let mut foreign = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        COMMUNITY,
+        key(97),
+        day(NOW),
+        30 * DAY,
+    )
+    .await
+    .unwrap();
+    let document = Snapshot {
+        community: COMMUNITY.into(),
+        revision: current.settings().revision,
+        policy_epoch: current.settings().policy_epoch,
+        content: current.settings().content.clone(),
+    };
+    let cose = foreign
+        .sign(
+            csgn::Kind::SettingsSnapshot,
+            &serde_json::to_vec(&document).unwrap(),
+            day(NOW),
+            30 * DAY,
+        )
+        .await
+        .unwrap();
+    let wrong = verify_settings(
+        foreign.key_ring().unwrap(),
+        &cose,
+        expectation(SnapshotKind::Settings, current.settings().policy_epoch, NOW),
+    )
+    .unwrap();
+    assert!(matches!(
+        policy.validate_snapshot(&wrong, NOW).await,
+        Err(Error::Verification)
+    ));
+    policy.validate_snapshot(&current, NOW).await.unwrap();
 }

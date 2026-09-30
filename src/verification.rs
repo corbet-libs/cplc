@@ -54,6 +54,7 @@ pub fn verify_snapshot<T: DeserializeOwned>(
 pub struct VerifiedSnapshot {
     pub(crate) snapshot: crbk::Snapshot,
     pub(crate) valid_until: u64,
+    pub(crate) publication: Vec<u8>,
 }
 
 impl VerifiedSnapshot {
@@ -90,5 +91,6 @@ pub fn verify_settings(
             content: document.content,
         },
         valid_until: verified.valid_until(),
+        publication: cose.to_vec(),
     })
 }

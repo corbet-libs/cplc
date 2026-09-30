@@ -685,7 +685,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cgts?rev=33066e3bea67cc130ffd84088e7342d3e2028c9b#33066e3bea67cc130ffd84088e7342d3e2028c9b"
+source = "git+https://github.com/corbet-libs/cgts?rev=2ec8d93a4edca6b16236e6d7424ad0eae92dfc7d#2ec8d93a4edca6b16236e6d7424ad0eae92dfc7d"
 dependencies = [
  "cblc",
  "cgrd",

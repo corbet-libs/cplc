@@ -461,7 +461,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             || state
                 .publications
                 .get(&SnapshotKind::Settings)
-                .is_none_or(|p| p.revision != snapshot.snapshot.revision || p.cose.is_none())
+                .is_none_or(|p| {
+                    p.revision != snapshot.snapshot.revision
+                        || p.cose.as_deref() != Some(snapshot.publication.as_slice())
+                })
         {
             return Err(Error::Verification);
         }

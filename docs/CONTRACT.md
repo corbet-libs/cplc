@@ -218,3 +218,7 @@ The membership source returns a per-member lease guard with its current facts.
 cplc retains this guard through signing, so revocation and membership changes
 cannot race the issuance check. The guard is released on success, error or
 cancellation. It is not acquired by pure lobby reads.
+
+Current-witness validation also requires the exact signed publication bytes
+stored by this policy owner. A document signed under a caller-selected foreign
+ring cannot copy current values/revision and extend the authenticated lifetime.
