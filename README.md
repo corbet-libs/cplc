@@ -31,7 +31,7 @@ community gates, pins and authorized public device keys. There is no arbitrary
 payload-signing endpoint and no caller-supplied "allowed" verdict.
 
 The service authenticates admins and assembles `CredentialRequest` from trusted
-membership and verified gate metadata. It must not deserialize a member request
+a membership source and opaque cgts checked witnesses. It must not deserialize a member request
 straight into these trusted inputs. cplc never executes gates, stores raw evidence,
 keeps a credential/member activity history, or receives pin values/salts.
 
@@ -42,16 +42,16 @@ each selected leaf's README and implemented contract:
 
 | Candidate | Decision and reason |
 |---|---|
-| [crbk](https://github.com/corbet-foss/crbk/tree/a84cdbf3cbeb8fdf55ebb2397644ec36364eb194) | Selected for sparse settings, action policies, missing requirements, prospective revisions and storage. No local rule evaluator or replacement revision engine. |
+| [crbk](https://github.com/corbet-foss/crbk/tree/fe70dc61262a80dd7681da853acfdad290f3910c) | Selected for sparse settings, action policies, missing requirements, prospective revisions and storage. No local rule evaluator or replacement revision engine. |
 | [Cedar 4.13](https://github.com/cedar-policy/cedar), [Casbin 2.20](https://github.com/casbin/casbin-rs) (Apache-2.0) | Maintained authorization engines; do not replace the already implemented crbk contract. Another engine would require a policy translation and duplicate semantics. |
 | [cshm](https://github.com/corbet-foss/cshm/tree/d136d2dbaceddfa0a19158d8f3a685a84abd06e7) | Selected for schema validation and change classification; it already delegates value validation to [jsonschema 0.58](https://github.com/Stranger6667/jsonschema) (MIT). No second schema engine. |
 | [csgn](https://github.com/corbet-foss/csgn/tree/d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b) | Selected for persistent community signing, rotation and verification. Its maintained [coset 0.4](https://github.com/google/coset) (Apache-2.0) and [ed25519-dalek 3](https://github.com/dalek-cryptography/curve25519-dalek) (BSD-3-Clause) dependencies execute all crypto. Direct use would duplicate its security contract. |
 | [crlt](https://github.com/corbet-foss/crlt/tree/6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc) | Ready on main; selected for scoped transactions, migrations and indexed query enforcement over official [libsql 0.9.30](https://github.com/tursodatabase/libsql) (MIT). No direct-client fallback needed. |
 | [Serde](https://github.com/serde-rs/serde), [serde_json](https://github.com/serde-rs/json), [thiserror](https://github.com/dtolnay/thiserror) (MIT/Apache-2.0) | Selected for typed wire/persistence data and redacted errors. No own parser. |
 
-All four cvld leaves are LGPL-3.0-only WITH LGPL-3.0-linking-exception and pinned
-by full Git revision. CI-resolved metadata for all 289 packages was reviewed: none requires a GPL-only
-or AGPL-only license. Tokio and tempfile are direct test-only dependencies.
+Leaf and facade dependencies are pinned by full Git revision. The cgts facade
+is FSL-1.1-ALv2; the selected corbet-foss leaves use their documented open-source
+licenses. CI checks the complete resolved graph for duplicate revisions.
 
 ## Storage and integration
 

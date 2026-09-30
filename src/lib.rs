@@ -79,3 +79,10 @@ pub(crate) fn identifier(value: &str) -> Result<()> {
 pub(crate) fn timestamp(now: u64) -> Result<i64> {
     i64::try_from(now).map_err(|_| Error::Invalid("time range"))
 }
+
+/// Seconds in a UTC day; persisted membership and issuance buckets use this unit.
+pub const DAY: u64 = 86_400;
+/// Start of the containing UTC day, never later than the supplied time.
+pub const fn day(now: u64) -> u64 {
+    now / DAY * DAY
+}

@@ -19,7 +19,7 @@ pub const ESTABLISHED_MEMBER_VALIDITY: u64 = 30 * NEW_MEMBER_VALIDITY;
 pub struct Config {
     /// Action evaluated by credential issuance; never selected by a member request.
     pub credential_action: String,
-    /// Maximum lifetime of public snapshots, in seconds.
+    /// Maximum lifetime of public snapshots, in whole days expressed as seconds.
     pub snapshot_validity: u64,
 }
 
@@ -32,6 +32,7 @@ impl Config {
                 .bytes()
                 .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
             || self.snapshot_validity == 0
+            || self.snapshot_validity % crate::DAY != 0
             || self.snapshot_validity > i64::MAX as u64
         {
             return Err(crate::Error::Invalid("configuration"));
@@ -91,22 +92,30 @@ pub struct Revocations {
     pub devices: BTreeSet<[u8; 32]>,
 }
 
-/// Lifetime class obtained from trusted membership state, not from a client.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MemberClass {
-    /// Newly admitted: at most one day.
-    New,
-    /// Established: at most thirty days.
-    Established,
+/// Current membership facts read by the owning membership facade.
+/// Selecting an implementation of MembershipSource is a privileged service task.
+pub struct MembershipFacts {
+    /// Fixed community of the source.
+    pub community: String,
+    /// Canonical community pseudonym.
+    pub member: String,
+    /// Persisted lifecycle state, never a caller-selected issuance class.
+    pub state: crbk::MembershipState,
+    /// Exclusive UTC-day probation end; absent once probation has finished.
+    pub probation_until: Option<u64>,
+    /// Exclusive UTC-day lease end derived from the register's coarse month.
+    pub lease_end: u64,
 }
 
-impl MemberClass {
-    pub(crate) fn validity(self) -> u64 {
-        match self {
-            Self::New => NEW_MEMBER_VALIDITY,
-            Self::Established => ESTABLISHED_MEMBER_VALIDITY,
-        }
-    }
+/// Read authoritative membership state at issuance. cmbr implements this boundary;
+/// cplc does not maintain a second member database or accept a lifetime class.
+pub trait MembershipSource {
+    /// Read current lifecycle, probation and lease for this authenticated member.
+    fn membership(
+        &self,
+        member: &str,
+        now: u64,
+    ) -> impl std::future::Future<Output = Result<MembershipFacts>>;
 }
 
 /// A pin fingerprint supplied by the membership facade; never an opening/salt.
@@ -156,6 +165,11 @@ pub struct Credential {
 
 /// Trusted inputs assembled by cmnt from membership and gatekeeping.
 /// This is deliberately not deserializable as an untrusted request body.
+///
+/// ```compile_fail
+/// let raw: Vec<crbk::GateResult> = vec![];
+/// let _: &cgts::CheckedGates = &raw;
+/// ```
 pub struct CredentialRequest<'a> {
     /// Verified subject and current membership state.
     pub subject: crbk::Subject<'a>,
@@ -163,10 +177,10 @@ pub struct CredentialRequest<'a> {
     pub handle: &'a str,
     /// Current schema version checked by the profile gate.
     pub schema_version: u32,
-    /// Trusted membership lifetime classification.
-    pub class: MemberClass,
-    /// Verified, subject-bound gate metadata (global presentations already bound).
-    pub gates: &'a [crbk::GateResult],
+    /// Authenticated current policy publication.
+    pub snapshot: &'a crate::VerifiedSnapshot,
+    /// cgts receipts, including the mandatory legal check even with no gates.
+    pub gates: &'a cgts::CheckedGates,
     /// Authorized pins; no values, salts or openings.
     pub pins: &'a [Pin],
     /// Authorized public device keys, never passkey secrets.

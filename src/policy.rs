@@ -160,7 +160,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     pub async fn schedule_rules(
         &mut self,
         expected: Option<u64>,
-        change: crbk::Change,
+        mut change: crbk::Change,
     ) -> Result<crbk::Revision> {
         let state = self.current().await?.clone();
         let latest = self.rules.load(&state.community, Selection::Latest).await?;
@@ -170,6 +170,9 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         {
             return Err(Error::Invalid("policy epoch must advance by one"));
         }
+        crbk::define_membership_settings(&mut change.rulebook)?;
+        cgts::gates::define_settings(&mut change.rulebook)
+            .map_err(|_| Error::Invalid("gate settings"))?;
         change.rulebook.validate()?;
         self.state = None;
         let result = self.rules.append(&state.community, expected, change).await;
@@ -298,7 +301,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             .sign(
                 csgn::Kind::SettingsSnapshot,
                 &serde_json::to_vec(&manifest).map_err(|_| Error::Corrupt)?,
-                now,
+                crate::day(now),
                 until,
             )
             .await
@@ -312,25 +315,32 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         self.commit(next).await
     }
 
-    /// Pure leaf decision over current policy; no signature or member write.
+    /// Sole admission decision over verified settings and bound gate receipts.
+    /// The source of membership state is cmbr; cmnt only wires these capabilities.
     pub async fn may(
         &self,
+        snapshot: &crate::VerifiedSnapshot,
         subject: crbk::Subject<'_>,
         action: &str,
-        gates: &[crbk::GateResult],
+        checked: &cgts::CheckedGates,
         now: u64,
     ) -> Result<crbk::Decision> {
+        self.validate_snapshot(snapshot, now).await?;
         let state = self.current().await?;
         if state.revocations.members.contains(subject.id) {
             return Err(Error::Revoked);
         }
-        let active = self.active(now).await?;
-        Ok(active.snapshot(&state.community, timestamp(now)?)?.may(
-            subject,
-            action,
-            gates,
-            timestamp(now)?,
-        )?)
+        let gates = checked
+            .in_context(cgts::Context {
+                snapshot: snapshot.settings(),
+                subject: subject.id,
+                action,
+                now: timestamp(now)?,
+            })
+            .map_err(|_| Error::Verification)?;
+        Ok(snapshot
+            .settings()
+            .may(subject, action, &gates, timestamp(now)?)?)
     }
 
     /// Sign and durably publish one current snapshot, returning its COSE bytes.
@@ -365,7 +375,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             .await?;
         let cose = self
             .signer
-            .sign(kind.signing_kind(), &payload, now, until)
+            .sign(kind.signing_kind(), &payload, crate::day(now), until)
             .await
             .map_err(|_| Error::Signing)?;
         next.publications.insert(
@@ -453,7 +463,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         active: &crbk::Revision,
     ) -> Result<u64> {
         let max = lifetime.min(self.key_ring()?.max_validity());
-        let mut until = now
+        let mut until = crate::day(now)
             .checked_add(max)
             .ok_or(Error::Invalid("time overflow"))?;
         until = until.min(i64::MAX as u64);
@@ -468,9 +478,42 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
 
     /// Evaluate the configured action and sign a credential only on a positive
     /// current verdict. Stores no credential bytes, subject or proof metadata.
-    pub async fn issue(&mut self, request: CredentialRequest<'_>, now: u64) -> Result<Vec<u8>> {
+    pub async fn issue<M: crate::MembershipSource>(
+        &mut self,
+        membership: &M,
+        request: CredentialRequest<'_>,
+        now: u64,
+    ) -> Result<Vec<u8>> {
         let state = self.current().await?.clone();
-        validate_request(&state, &request)?;
+        self.validate_snapshot(request.snapshot, now).await?;
+        let gates = request
+            .gates
+            .in_context(cgts::Context {
+                snapshot: request.snapshot.settings(),
+                subject: request.subject.id,
+                action: &state.config.credential_action,
+                now: timestamp(now)?,
+            })
+            .map_err(|_| Error::Verification)?;
+        validate_request(&state, &request, &gates)?;
+        let facts = membership.membership(request.subject.id, now).await?;
+        if facts.community != state.community
+            || facts.member != request.subject.id
+            || facts.state != crbk::MembershipState::Admitted
+            || facts.lease_end <= now
+            || facts.lease_end % crate::DAY != 0
+            || facts
+                .probation_until
+                .is_some_and(|end| end % crate::DAY != 0)
+        {
+            return Err(Error::Invalid("membership state or lease"));
+        }
+        let durations = crbk::MembershipSettings::from_snapshot(request.snapshot.settings())?;
+        let days = if facts.probation_until.is_some_and(|end| end > now) {
+            durations.new_credential_days
+        } else {
+            durations.established_credential_days
+        };
         let active = self.active(now).await?;
         let snapshot = active.snapshot(&state.community, timestamp(now)?)?;
         let decide = |at| {
@@ -480,7 +523,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
                     membership: request.subject.membership,
                 },
                 &state.config.credential_action,
-                request.gates,
+                &gates,
                 at,
             )
         };
@@ -489,10 +532,11 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             return Err(Error::Denied(decision));
         }
         let mut until = self
-            .validity_limit(now, request.class.validity(), &active)
+            .validity_limit(now, u64::from(days) * crate::DAY, &active)
             .await?;
+        until = until.min(facts.lease_end);
         let mut community_gates = Vec::new();
-        for gate in request.gates {
+        for gate in &gates {
             // Ask the leaf whether each supplied assertion is usable before
             // attesting to it, including switches, provider and proof metadata.
             if !usable_gate(&snapshot, &request.subject, gate, timestamp(now)?)? {
@@ -534,7 +578,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         };
         let payload = encode(&credential)?;
         self.signer
-            .sign(csgn::Kind::Credential, &payload, now, until)
+            .sign(csgn::Kind::Credential, &payload, crate::day(now), until)
             .await
             .map_err(|_| Error::Signing)
     }
@@ -544,7 +588,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     pub async fn rotate(&mut self, key: csgn::SecretKey, now: u64) -> Result<()> {
         self.current().await?;
         self.signer
-            .rotate(key, now)
+            .rotate(key, crate::day(now))
             .await
             .map_err(|_| Error::Signing)
     }
@@ -552,7 +596,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     /// Prune only expired retired public keys through csgn.
     pub async fn prune_keys(&mut self, now: u64) -> Result<()> {
         self.current().await?;
-        self.signer.prune(now).await.map_err(|_| Error::Signing)
+        self.signer
+            .prune(crate::day(now))
+            .await
+            .map_err(|_| Error::Signing)
     }
 }
 
@@ -566,6 +613,17 @@ fn check_issuer<K: csgn::Store>(signer: &csgn::PersistentSigner<K>, community: &
     }
     if signer.key_ring().map_err(|_| Error::Signing)?.issuer() != community {
         return Err(Error::Invalid("signer scope"));
+    }
+    if signer
+        .key_ring()
+        .map_err(|_| Error::Signing)?
+        .active()
+        .ok_or(Error::Signing)?
+        .activated_at()
+        % crate::DAY
+        != 0
+    {
+        return Err(Error::Invalid("signer day boundary"));
     }
     Ok(())
 }
@@ -592,13 +650,17 @@ fn encode_snapshot<T: Serialize>(
     })
 }
 
-fn validate_request(state: &StoredPolicy, request: &CredentialRequest<'_>) -> Result<()> {
+fn validate_request(
+    state: &StoredPolicy,
+    request: &CredentialRequest<'_>,
+    gates: &[crbk::GateResult],
+) -> Result<()> {
     identifier(request.subject.id)?;
     identifier(request.handle)?;
     let schema = state.schema.as_ref().ok_or(Error::Missing)?;
     if request.schema_version != schema.version
         || request.subject.membership != crbk::MembershipState::Admitted
-        || request.gates.len() > MAX_ENTRIES
+        || gates.len() > MAX_ENTRIES
         || request.pins.len() > MAX_ENTRIES
         || request.devices.is_empty()
         || request.devices.len() > MAX_ENTRIES
@@ -613,14 +675,14 @@ fn validate_request(state: &StoredPolicy, request: &CredentialRequest<'_>) -> Re
     {
         return Err(Error::Revoked);
     }
-    let mut gates = BTreeSet::new();
-    for gate in request.gates {
+    let mut gate_ids = BTreeSet::new();
+    for gate in gates {
         if gate.subject != request.subject.id
             || match gate.level {
                 GateLevel::Community => gate.community.as_deref() != Some(&state.community),
                 GateLevel::Global => gate.community.is_some(),
             }
-            || !gates.insert((gate.level, &gate.gate))
+            || !gate_ids.insert((gate.level, &gate.gate))
         {
             return Err(Error::Invalid("gate binding or duplicate"));
         }

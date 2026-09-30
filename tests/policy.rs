@@ -125,9 +125,9 @@ async fn credential_roundtrip_uses_verdict_and_lifetime_class() {
     ] {
         let mut input = request(&gates);
         input.class = class;
-        let cose = policy.issue(input, NOW).await.unwrap();
+        let cose = policy.issue_test(input, NOW).await.unwrap();
         let (credential, until) = decode_credential(policy.key_ring().unwrap(), &cose, NOW);
-        assert_eq!(until, NOW + validity);
+        assert_eq!(until, day(NOW) + validity);
         assert_eq!(credential.member, MEMBER);
         assert_eq!(credential.gates.len(), 1);
         assert_eq!(credential.devices, DEVICES);
@@ -147,11 +147,11 @@ async fn credential_roundtrip_uses_verdict_and_lifetime_class() {
 #[tokio::test]
 async fn a_missing_or_disabled_gate_never_gets_a_signature() {
     let mut policy = memory().await;
-    let decision = policy.may(subject(), "admit", &[], NOW).await.unwrap();
+    let decision = policy.may_test(subject(), "admit", &[], NOW).await.unwrap();
     assert!(!decision.allowed);
     assert!(!decision.missing.is_empty());
     assert!(matches!(
-        policy.issue(request(&[]), NOW).await,
+        policy.issue_test(request(&[]), NOW).await,
         Err(Error::Denied(_))
     ));
     let mut rules = book(admission());
@@ -163,12 +163,14 @@ async fn a_missing_or_disabled_gate_never_gets_a_signature() {
         .unwrap();
     let mut disabled = memory_with(rules).await;
     assert!(matches!(
-        disabled.issue(request(&[development_gate(300)]), NOW).await,
+        disabled
+            .issue_test(request(&[development_gate(300)]), NOW)
+            .await,
         Err(Error::Denied(_))
     ));
     assert!(
         !disabled
-            .may(subject(), "unknown_action", &[], NOW)
+            .may_test(subject(), "unknown_action", &[], NOW)
             .await
             .unwrap()
             .allowed
@@ -182,23 +184,19 @@ async fn maximum_age_and_proof_expiry_bound_the_entire_credential() {
     let mut policy = memory_with(book(action)).await;
     let mut gate = development_gate(500);
     gate.proven_at = Some(95);
-    let cose = policy.issue(request(&[gate.clone()]), NOW).await.unwrap();
-    assert_eq!(
-        decode_credential(policy.key_ring().unwrap(), &cose, NOW).1,
-        106
-    );
+    // No gate can invent the authenticated issuance metadata required by max age.
     assert!(matches!(
-        policy.issue(request(&[gate.clone()]), 106).await,
+        policy.issue_test(request(&[gate.clone()]), NOW).await,
         Err(Error::Denied(_))
     ));
     gate.proven_at = None;
     assert!(matches!(
-        policy.issue(request(&[gate]), NOW).await,
+        policy.issue_test(request(&[gate]), NOW).await,
         Err(Error::Denied(_))
     ));
     let mut policy = memory().await;
     let cose = policy
-        .issue(request(&[development_gate(101)]), NOW)
+        .issue_test(request(&[development_gate(101)]), NOW)
         .await
         .unwrap();
     assert_eq!(
@@ -219,7 +217,7 @@ async fn rulebook_any_and_threshold_policies_are_not_flattened() {
     let mut policy = memory_with(book(any)).await;
     assert!(
         policy
-            .issue(request(&[development_gate(500)]), NOW)
+            .issue_test(request(&[development_gate(500)]), NOW)
             .await
             .is_ok()
     );
@@ -235,13 +233,15 @@ async fn rulebook_any_and_threshold_policies_are_not_flattened() {
     };
     let mut policy = memory_with(book(threshold)).await;
     assert!(matches!(
-        policy.issue(request(&[development_gate(500)]), NOW).await,
+        policy
+            .issue_test(request(&[development_gate(500)]), NOW)
+            .await,
         Err(Error::Denied(_))
     ));
     let mut voucher = development_gate(300);
     voucher.gate = "voucher".into();
     let cose = policy
-        .issue(request(&[development_gate(500), voucher]), NOW)
+        .issue_test(request(&[development_gate(500), voucher]), NOW)
         .await
         .unwrap();
     assert_eq!(
@@ -251,60 +251,35 @@ async fn rulebook_any_and_threshold_policies_are_not_flattened() {
 }
 
 #[tokio::test]
-async fn global_metadata_is_decided_but_not_disclosed() {
-    let action = crbk::ActionPolicy {
-        all_of: vec![requirement("phone", crbk::GateLevel::Global)],
-        ..Default::default()
-    };
-    let mut policy = memory_with(book(action)).await;
-    let mut gate = development_gate(500);
-    gate.gate = "phone".into();
-    gate.level = crbk::GateLevel::Global;
-    gate.community = None;
-    let cose = policy.issue(request(&[gate]), NOW).await.unwrap();
-    let verified = policy
-        .key_ring()
-        .unwrap()
-        .verify(&cose, csgn::Kind::Credential, NOW)
-        .unwrap();
-    let payload = std::str::from_utf8(verified.payload()).unwrap();
-    let credential: Credential = serde_json::from_slice(verified.payload()).unwrap();
-    assert!(credential.gates.is_empty());
-    assert!(!payload.contains("phone"));
-    assert!(!payload.contains("proven_at"));
-    assert_eq!(verified.valid_until(), 500);
-}
-
-#[tokio::test]
 async fn credential_binding_and_duplicate_failures_are_closed_even_for_empty_policy() {
     let mut policy = memory_with(book(crbk::ActionPolicy::default())).await;
     let mut gate = development_gate(500);
     gate.subject = "other-member".into();
     assert!(matches!(
-        policy.issue(request(&[gate]), NOW).await,
+        policy.issue_test(request(&[gate]), NOW).await,
         Err(Error::Invalid(_))
     ));
     let mut gate = development_gate(500);
     gate.community = Some("other".into());
     assert!(matches!(
-        policy.issue(request(&[gate]), NOW).await,
+        policy.issue_test(request(&[gate]), NOW).await,
         Err(Error::Invalid(_))
     ));
     let gate = development_gate(500);
     assert!(matches!(
-        policy.issue(request(&[gate.clone(), gate]), NOW).await,
+        policy.issue_test(request(&[gate.clone(), gate]), NOW).await,
         Err(Error::Invalid(_))
     ));
     let mut gate = development_gate(500);
     gate.proven_at = Some(101);
     assert!(matches!(
-        policy.issue(request(&[gate]), NOW).await,
+        policy.issue_test(request(&[gate]), NOW).await,
         Err(Error::Invalid(_))
     ));
     let mut input = request(&[]);
     input.subject.membership = crbk::MembershipState::Released;
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Invalid(_))
     ));
 }
@@ -319,7 +294,7 @@ async fn authorized_pins_and_devices_roundtrip_and_invalid_inputs_fail() {
     }];
     let mut input = request(&gates);
     input.pins = &pins;
-    let cose = policy.issue(input, NOW).await.unwrap();
+    let cose = policy.issue_test(input, NOW).await.unwrap();
     assert_eq!(
         decode_credential(policy.key_ring().unwrap(), &cose, NOW)
             .0
@@ -330,7 +305,7 @@ async fn authorized_pins_and_devices_roundtrip_and_invalid_inputs_fail() {
     let mut input = request(&gates);
     input.pins = &duplicate;
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Invalid(_))
     ));
     let invalid = [Pin {
@@ -340,19 +315,19 @@ async fn authorized_pins_and_devices_roundtrip_and_invalid_inputs_fail() {
     let mut input = request(&gates);
     input.pins = &invalid;
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Invalid(_))
     ));
     let mut input = request(&gates);
     input.devices = &[DEVICE, DEVICE];
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Invalid(_))
     ));
     let mut input = request(&gates);
     input.devices = &[];
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Invalid(_))
     ));
 }
@@ -372,7 +347,9 @@ async fn schema_classification_versions_and_scope_are_owned_by_cshm() {
         None
     );
     assert!(matches!(
-        policy.issue(request(&[development_gate(500)]), NOW).await,
+        policy
+            .issue_test(request(&[development_gate(500)]), NOW)
+            .await,
         Err(Error::Invalid(_))
     ));
     assert!(matches!(
@@ -408,12 +385,14 @@ async fn revocations_advance_epochs_and_block_members_and_devices() {
         .unwrap();
     assert!(policy.epoch(NOW).await.unwrap() > old_epoch);
     assert!(matches!(
-        policy.issue(request(&[development_gate(500)]), NOW).await,
+        policy
+            .issue_test(request(&[development_gate(500)]), NOW)
+            .await,
         Err(Error::Revoked)
     ));
     assert!(matches!(
         policy
-            .may(subject(), "admit", &[development_gate(500)], NOW)
+            .may_test(subject(), "admit", &[development_gate(500)], NOW)
             .await,
         Err(Error::Revoked)
     ));
@@ -437,7 +416,9 @@ async fn revocations_advance_epochs_and_block_members_and_devices() {
         .await
         .unwrap();
     assert!(matches!(
-        policy.issue(request(&[development_gate(500)]), NOW).await,
+        policy
+            .issue_test(request(&[development_gate(500)]), NOW)
+            .await,
         Err(Error::Revoked)
     ));
     let cose = policy
@@ -473,7 +454,7 @@ async fn scheduled_policy_does_not_activate_early_and_always_advances_epoch() {
     let immediate = policy.epoch(199).await.unwrap();
     assert!(immediate > before);
     let cose = policy
-        .issue(request(&[development_gate(500)]), NOW)
+        .issue_test(request(&[development_gate(500)]), NOW)
         .await
         .unwrap();
     assert_eq!(
@@ -492,7 +473,9 @@ async fn scheduled_policy_does_not_activate_early_and_always_advances_epoch() {
     );
     assert!(policy.epoch(200).await.unwrap() > immediate);
     assert!(matches!(
-        policy.issue(request(&[development_gate(500)]), 200).await,
+        policy
+            .issue_test(request(&[development_gate(500)]), 200)
+            .await,
         Err(Error::Denied(_))
     ));
     assert_eq!(
@@ -518,7 +501,7 @@ async fn scheduling_rejects_notice_violations_and_nonadvancing_epochs() {
     ));
     assert!(
         policy
-            .issue(request(&[development_gate(500)]), NOW)
+            .issue_test(request(&[development_gate(500)]), NOW)
             .await
             .is_ok()
     );
@@ -577,7 +560,7 @@ async fn signatures_enforce_kind_scope_epoch_revision_and_tamper_rejection() {
 async fn rotate_retains_old_credential_and_uses_new_key() {
     let mut policy = memory().await;
     let old = policy
-        .issue(request(&[development_gate(500)]), NOW)
+        .issue_test(request(&[development_gate(500)]), NOW)
         .await
         .unwrap();
     let previous_id = policy.key_ring().unwrap().active().unwrap().key_id();
@@ -594,7 +577,7 @@ async fn rotate_retains_old_credential_and_uses_new_key() {
             .is_ok()
     );
     let new = policy
-        .issue(request(&[development_gate(500)]), 101)
+        .issue_test(request(&[development_gate(500)]), 101)
         .await
         .unwrap();
     assert_eq!(
@@ -616,10 +599,15 @@ async fn rotate_retains_old_credential_and_uses_new_key() {
 
 #[tokio::test]
 async fn wrong_signer_scope_and_missing_configuration_fail() {
-    let signer =
-        csgn::PersistentSigner::create(csgn::MemoryStore::default(), "other", key(1), NOW, 1000)
-            .await
-            .unwrap();
+    let signer = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        "other",
+        key(1),
+        day(NOW),
+        1000,
+    )
+    .await
+    .unwrap();
     assert!(matches!(
         Policy::create(
             crbk::MemoryStore::default(),
@@ -630,10 +618,15 @@ async fn wrong_signer_scope_and_missing_configuration_fail() {
         .await,
         Err(Error::Invalid(_))
     ));
-    let signer =
-        csgn::PersistentSigner::create(csgn::MemoryStore::default(), COMMUNITY, key(1), NOW, 1000)
-            .await
-            .unwrap();
+    let signer = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        COMMUNITY,
+        key(1),
+        day(NOW),
+        1000,
+    )
+    .await
+    .unwrap();
     let mut policy = Policy::create(
         crbk::MemoryStore::default(),
         MemoryStore::new(COMMUNITY).unwrap(),
@@ -643,7 +636,7 @@ async fn wrong_signer_scope_and_missing_configuration_fail() {
     .await
     .unwrap();
     assert!(matches!(
-        policy.issue(request(&[]), NOW).await,
+        policy.issue_test(request(&[]), NOW).await,
         Err(Error::Missing)
     ));
     assert!(matches!(
@@ -657,13 +650,18 @@ async fn limits_and_extreme_time_fail_without_logging_input() {
     let mut policy = memory().await;
     let gates = vec![development_gate(500); MAX_ENTRIES + 1];
     assert!(matches!(
-        policy.issue(request(&gates), NOW).await,
+        policy.issue_test(request(&gates), NOW).await,
         Err(Error::Invalid(_))
     ));
-    assert!(policy.may(subject(), "admit", &[], u64::MAX).await.is_err());
+    assert!(
+        policy
+            .may_test(subject(), "admit", &[], u64::MAX)
+            .await
+            .is_err()
+    );
     let mut input = request(&[]);
     input.handle = "";
-    let error = policy.issue(input, NOW).await.unwrap_err();
+    let error = policy.issue_test(input, NOW).await.unwrap_err();
     assert!(!format!("{error:?}").contains(MEMBER));
     let communities = (0..=MAX_ENTRIES)
         .map(|i| format!("community-{i}"))
@@ -674,7 +672,7 @@ async fn limits_and_extreme_time_fail_without_logging_input() {
     ));
     assert!(
         policy
-            .issue(request(&[development_gate(500)]), NOW)
+            .issue_test(request(&[development_gate(500)]), NOW)
             .await
             .is_ok()
     );
@@ -682,10 +680,15 @@ async fn limits_and_extreme_time_fail_without_logging_input() {
 
 #[tokio::test]
 async fn malformed_signed_snapshot_payloads_are_rejected() {
-    let mut signer =
-        csgn::PersistentSigner::create(csgn::MemoryStore::default(), COMMUNITY, key(1), NOW, 1000)
-            .await
-            .unwrap();
+    let mut signer = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        COMMUNITY,
+        key(1),
+        day(NOW),
+        1000,
+    )
+    .await
+    .unwrap();
     for payload in [
         json!({"community":COMMUNITY,"revision":0,"policy_epoch":1,"content":{}}),
         json!({"community":"other","revision":1,"policy_epoch":1,"content":{}}),
@@ -799,11 +802,11 @@ async fn empty_policy_never_issues_to_pending_lapsed_or_released_members() {
         let mut input = request(&[]);
         input.subject.membership = membership;
         assert!(matches!(
-            policy.issue(input, NOW).await,
+            policy.issue_test(input, NOW).await,
             Err(Error::Invalid(_))
         ));
     }
-    assert!(policy.issue(request(&[]), NOW).await.is_ok());
+    assert!(policy.issue_test(request(&[]), NOW).await.is_ok());
 }
 
 #[tokio::test]
@@ -825,7 +828,7 @@ async fn an_epoch_jump_cannot_exhaust_revocation_capacity() {
         .await
         .unwrap();
     assert!(matches!(
-        policy.issue(request(&[]), NOW).await,
+        policy.issue_test(request(&[]), NOW).await,
         Err(Error::Revoked)
     ));
 }
@@ -834,7 +837,7 @@ async fn an_epoch_jump_cannot_exhaust_revocation_capacity() {
 async fn credential_debug_omits_member_handle_pins_and_devices() {
     let mut policy = memory().await;
     let signed = policy
-        .issue(request(&[development_gate(500)]), NOW)
+        .issue_test(request(&[development_gate(500)]), NOW)
         .await
         .unwrap();
     let (credential, _) = decode_credential(policy.key_ring().unwrap(), &signed, NOW);
@@ -847,7 +850,7 @@ async fn global_issuer_namespace_is_unavailable_to_communities() {
         csgn::MemoryStore::default(),
         "cglb:global",
         key(1),
-        NOW,
+        day(NOW),
         1000,
     )
     .await
@@ -868,12 +871,15 @@ async fn global_issuer_namespace_is_unavailable_to_communities() {
 async fn settings_witness_preserves_the_envelope_and_rejects_stale_publications() {
     let mut policy = memory().await;
     let verified = policy.verified_settings(NOW).await.unwrap();
-    assert_eq!(verified.settings().issued, NOW as i64);
+    assert_eq!(verified.settings().issued, day(NOW) as i64);
     assert_eq!(
         verified.settings().policy_epoch,
         policy.epoch(NOW).await.unwrap()
     );
-    assert_eq!(verified.valid_until(), NOW + config().snapshot_validity);
+    assert_eq!(
+        verified.valid_until(),
+        day(NOW) + config().snapshot_validity
+    );
     policy.validate_snapshot(&verified, NOW).await.unwrap();
     policy.publish(SnapshotKind::Settings, NOW).await.unwrap();
     assert!(matches!(

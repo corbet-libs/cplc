@@ -29,7 +29,7 @@ async fn real_file_roundtrip_restart_rotation_and_index_plans() {
         .await
         .unwrap();
     let old = policy
-        .issue(request(&[development_gate(500)]), NOW)
+        .issue_test(request(&[development_gate(500)]), NOW)
         .await
         .unwrap();
     let published = policy.publish(SnapshotKind::Schema, NOW).await.unwrap();
@@ -43,7 +43,7 @@ async fn real_file_roundtrip_restart_rotation_and_index_plans() {
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
         key(2),
-        102,
+        day(102),
     )
     .await
     .unwrap();
@@ -79,7 +79,7 @@ async fn real_file_roundtrip_restart_rotation_and_index_plans() {
     assert_eq!(snapshot.revision, 2);
     assert!(
         reopened
-            .issue(request(&[development_gate(500)]), 102)
+            .issue_test(request(&[development_gate(500)]), 102)
             .await
             .is_ok()
     );
@@ -94,7 +94,7 @@ async fn community_namespaces_cannot_read_each_other_in_one_test_database() {
         csgn::LibsqlStore::new(db.community("second").unwrap()),
         "second",
         key(2),
-        NOW,
+        day(NOW),
         ESTABLISHED_MEMBER_VALIDITY,
     )
     .await
@@ -137,10 +137,11 @@ async fn community_namespaces_cannot_read_each_other_in_one_test_database() {
 #[tokio::test]
 async fn issuance_keeps_no_member_credential_or_activity_record() {
     let (_dir, db, _rules_db, mut policy) = local().await;
+    policy.verified_settings(NOW).await.unwrap();
     let store = LibsqlStore::new(&db, COMMUNITY).unwrap();
     let before = store.load().await.unwrap().unwrap();
     policy
-        .issue(request(&[development_gate(500)]), NOW)
+        .issue_test(request(&[development_gate(500)]), NOW)
         .await
         .unwrap();
     let after = store.load().await.unwrap().unwrap();
@@ -171,7 +172,7 @@ async fn opening_new_writer_fences_old_policy_and_signer() {
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
         key(1),
-        NOW,
+        day(NOW),
     )
     .await
     .unwrap();
@@ -183,7 +184,7 @@ async fn opening_new_writer_fences_old_policy_and_signer() {
     .await
     .unwrap();
     assert!(matches!(
-        old.issue(request(&[development_gate(500)]), NOW).await,
+        old.issue_test(request(&[development_gate(500)]), NOW).await,
         Err(Error::Conflict)
     ));
     assert!(matches!(old.bump_epoch().await, Err(Error::Conflict)));
@@ -192,7 +193,7 @@ async fn opening_new_writer_fences_old_policy_and_signer() {
         Err(Error::Conflict)
     ));
     assert!(
-        new.issue(request(&[development_gate(500)]), NOW)
+        new.issue_test(request(&[development_gate(500)]), NOW)
             .await
             .is_ok()
     );
@@ -290,7 +291,7 @@ async fn real_database_failure_after_signing_returns_no_publication() {
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
         key(1),
-        NOW,
+        day(NOW),
     )
     .await
     .unwrap();
@@ -350,7 +351,7 @@ async fn cancelling_publication_disables_writer_and_preserves_committed_state() 
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
         key(1),
-        NOW,
+        day(NOW),
     )
     .await
     .unwrap();
@@ -442,7 +443,7 @@ async fn indexed_revocations_exceed_256_and_survive_reopening() {
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
         key(1),
-        NOW,
+        day(NOW),
     )
     .await
     .unwrap();
@@ -457,7 +458,7 @@ async fn indexed_revocations_exceed_256_and_survive_reopening() {
     let mut input = request(&[]);
     input.subject.id = "member-256";
     assert!(matches!(
-        policy.issue(input, NOW).await,
+        policy.issue_test(input, NOW).await,
         Err(Error::Revoked)
     ));
     policy

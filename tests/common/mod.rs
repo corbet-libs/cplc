@@ -17,7 +17,7 @@ pub fn key(seed: u8) -> csgn::SecretKey {
 pub fn config() -> Config {
     Config {
         credential_action: "admit".into(),
-        snapshot_validity: 600,
+        snapshot_validity: DAY,
     }
 }
 pub fn subject() -> crbk::Subject<'static> {
@@ -119,8 +119,8 @@ pub fn development_gate(until: i64) -> crbk::GateResult {
         proven_at: Some(NOW as i64),
     }
 }
-pub fn request(gates: &[crbk::GateResult]) -> CredentialRequest<'_> {
-    CredentialRequest {
+pub fn request(gates: &[crbk::GateResult]) -> TestRequest<'_> {
+    TestRequest {
         subject: subject(),
         handle: "testmember",
         schema_version: 1,
@@ -135,7 +135,7 @@ pub async fn memory_with(book: crbk::Rulebook) -> MemoryPolicy {
         csgn::MemoryStore::default(),
         COMMUNITY,
         key(1),
-        NOW,
+        day(NOW),
         ESTABLISHED_MEMBER_VALIDITY,
     )
     .await
@@ -182,7 +182,7 @@ pub async fn sql_policy(db: &crlt::Db, rules_db: &crlt::Db, community: &str) -> 
         csgn::LibsqlStore::new(db.community(community).unwrap()),
         community,
         key(1),
-        NOW,
+        day(NOW),
         ESTABLISHED_MEMBER_VALIDITY,
     )
     .await
@@ -218,5 +218,163 @@ pub fn expectation(kind: SnapshotKind, epoch: u64, now: u64) -> SnapshotExpectat
         minimum_revision: 1,
         policy_epoch: epoch,
         now,
+    }
+}
+
+// Raw external provider fixtures remain confined to tests. Production accepts only
+// cgts witnesses. Real rulebook, legal, gate storage and signing code execute below.
+#[derive(Clone, Copy)]
+pub enum MemberClass {
+    New,
+    Established,
+}
+pub struct TestRequest<'a> {
+    pub subject: crbk::Subject<'a>,
+    pub handle: &'a str,
+    pub schema_version: u32,
+    pub class: MemberClass,
+    pub gates: &'a [crbk::GateResult],
+    pub pins: &'a [Pin],
+    pub devices: &'a [[u8; 32]],
+}
+
+#[derive(Clone)]
+pub struct NoAuthority;
+impl clbs::Verifier for NoAuthority {
+    async fn verify_legal(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
+        Err(clbs::Error::Denied)
+    }
+    async fn verify_self_ban(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
+        Err(clbs::Error::Denied)
+    }
+}
+struct FixtureGate(crbk::GateResult);
+impl cgts::Gate for FixtureGate {
+    type Input = ();
+    fn descriptor(&self) -> cgts::Descriptor {
+        cgts::Descriptor {
+            gate: self.0.gate.clone(),
+            provider: self.0.provider.clone(),
+            level: self.0.level,
+            steps: vec![cgts::Step {
+                id: "submit".into(),
+                description: "Test provider evidence".into(),
+                input: "unit".into(),
+            }],
+        }
+    }
+    async fn verify(&self, context: cgts::Context<'_>, _: &()) -> cgts::Result<cgts::Proof> {
+        if self.0.subject != context.subject
+            || self.0.community.as_deref() != Some(&context.snapshot.community)
+            || self.0.proven_at.is_some_and(|time| time > context.now)
+        {
+            return Err(cgts::Error::Scope);
+        }
+        Ok(cgts::Proof::transient(self.0.valid_until))
+    }
+}
+pub struct FixtureMembership {
+    pub member: String,
+    pub state: crbk::MembershipState,
+    pub probation_until: Option<u64>,
+    pub lease_end: u64,
+}
+impl MembershipSource for FixtureMembership {
+    async fn membership(&self, member: &str, _: u64) -> Result<MembershipFacts> {
+        if self.member != member {
+            return Err(Error::Invalid("fixture member"));
+        }
+        Ok(MembershipFacts {
+            community: COMMUNITY.into(),
+            member: self.member.clone(),
+            state: self.state,
+            probation_until: self.probation_until,
+            lease_end: self.lease_end,
+        })
+    }
+}
+pub async fn checked(
+    snapshot: &VerifiedSnapshot,
+    subject: &str,
+    action: &str,
+    gates: &[crbk::GateResult],
+    now: u64,
+) -> Result<cgts::CheckedGates> {
+    let keeper = cgts::Gatekeeper::new(
+        cgts::MemoryStore::new(COMMUNITY).unwrap(),
+        cgts::LegalGate::new(clbs::MemoryStore::new(COMMUNITY).unwrap(), NoAuthority),
+    )
+    .unwrap();
+    let context = cgts::Context {
+        snapshot: snapshot.settings(),
+        subject,
+        action,
+        now: now as i64,
+    };
+    let mut checks = Vec::new();
+    for gate in gates {
+        if gate.valid_until <= now as i64 {
+            continue;
+        }
+        match keeper.run(context, &FixtureGate(gate.clone()), &()).await {
+            Ok(check) => checks.push(check),
+            Err(cgts::Error::Disabled) => {}
+            Err(_) => return Err(Error::Invalid("test evidence refused")),
+        }
+    }
+    keeper
+        .check(context, checks)
+        .await
+        .map_err(|_| Error::Invalid("test evidence refused"))
+}
+
+pub trait TestPolicyApi {
+    async fn issue_test(&mut self, request: TestRequest<'_>, now: u64) -> Result<Vec<u8>>;
+    async fn may_test(
+        &mut self,
+        subject: crbk::Subject<'_>,
+        action: &str,
+        gates: &[crbk::GateResult],
+        now: u64,
+    ) -> Result<crbk::Decision>;
+}
+impl<R: crbk::Storage, S: Storage, K: csgn::Store> TestPolicyApi for Policy<R, S, K> {
+    async fn issue_test(&mut self, request: TestRequest<'_>, now: u64) -> Result<Vec<u8>> {
+        let snapshot = self.verified_settings(now).await?;
+        let gates = checked(&snapshot, request.subject.id, "admit", request.gates, now).await?;
+        let source = FixtureMembership {
+            member: request.subject.id.into(),
+            state: request.subject.membership,
+            probation_until: match request.class {
+                MemberClass::New => Some(14 * DAY),
+                MemberClass::Established => None,
+            },
+            lease_end: 90 * DAY,
+        };
+        self.issue(
+            &source,
+            CredentialRequest {
+                subject: request.subject,
+                handle: request.handle,
+                schema_version: request.schema_version,
+                snapshot: &snapshot,
+                gates: &gates,
+                pins: request.pins,
+                devices: request.devices,
+            },
+            now,
+        )
+        .await
+    }
+    async fn may_test(
+        &mut self,
+        subject: crbk::Subject<'_>,
+        action: &str,
+        gates: &[crbk::GateResult],
+        now: u64,
+    ) -> Result<crbk::Decision> {
+        let snapshot = self.verified_settings(now).await?;
+        let gates = checked(&snapshot, subject.id, action, gates, now).await?;
+        self.may(&snapshot, subject, action, &gates, now).await
     }
 }

@@ -32,7 +32,7 @@ async fn optional_real_turso() {
     policy.set_schema(schema).await.unwrap();
     let mut gate = development_gate(500);
     gate.community = Some(scope.into());
-    let cose = policy.issue(request(&[gate]), NOW).await.unwrap();
+    let cose = policy.issue_test(request(&[gate]), NOW).await.unwrap();
     assert!(
         policy
             .key_ring()

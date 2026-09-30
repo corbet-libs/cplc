@@ -20,7 +20,7 @@ writer. All mutating facade methods require exclusive access. Revision fencing
 is defense against stale writers, not a distributed publication protocol.
 
 The composition root supplies authenticated community routing, trusted Unix
-seconds, administrator authorization, verified gate metadata, membership state,
+seconds, administrator authorization, cgts checked witnesses and a cmbr membership source,
 a canonical reserved handle, authorized pins and public device keys. None of
 these Rust inputs is evidence of remote authentication. In particular, exposing
 `CredentialRequest` directly as a member-facing signing endpoint is unsafe.
@@ -72,8 +72,15 @@ participates in the decision but is never copied into the credential or storage.
 Credential issuance stores no credential, pseudonym, proof or login history.
 Current revocations are explicit policy state, not an activity log.
 
-New-member credentials last at most one day; established credentials at most
-thirty days. Both are shortened to csgn's lifetime limit, proof expiry and the next
+The membership source is selected by the service composition root, and reads
+current state, probation and lease from cmbr. Callers cannot select a lifetime
+class. cplc rejects Pending, Lapsed and Released even if a request claims Admitted.
+The resolved crbk settings `membership.new_credential_days`,
+`membership.established_credential_days` and `membership.probation_days` default
+to 1, 30 and 14. Probation is a stored exclusive UTC-day boundary; absent or
+passed probation selects established validity. Both credential caps are at most
+30 days and may be shortened by policy. Credentials never outlive the lease.
+They are also shortened to csgn's lifetime limit, proof expiry and the next
 announced policy activation. Maximum-proof-age expiry is determined by asking
 crbk at future times within this fixed policy interval, not by another policy
 engine. Every included gate covers the entire signed lifetime. Subject/scope
@@ -89,7 +96,8 @@ The cplc storage trait atomically loads/replaces one community document with a
 revision comparison. Both memory and crlt/libSQL implementations enforce the same
 state validation and counter/epoch monotonicity. The libSQL row uses primary key
 `(community_id, slot)` and stores current schema, config, public communities,
-revocations, aggregate epochs and publication counters/latest policy COSE.
+aggregate epochs and publication counters/latest policy COSE. Revocations live
+in separate indexed rows.
 No signing secret or member credential is stored. Application read/write query
 plans are checked by crlt and by adapter tests. The service owns migration numbers
 and supplies complete migration history for cplc, crbk and csgn.
@@ -162,3 +170,39 @@ revocation set cannot prevent committing further revocations or advancing epochs
 publishing, advancing the epoch, or recording that a caller read it. The door
 uses it for checks such as reserved-handle validation, independently of the
 fresh global passport proof needed for admission.
+
+## Admission and time precision
+
+`Policy::may` is the sole admission decision owner, delegating to crbk over the
+current `VerifiedSnapshot` and cgts `CheckedGates`. `Policy::issue` requires the
+same capabilities plus current facts from the authoritative membership source.
+Raw snapshots and raw gate arrays cannot enter either API. Changing publication,
+revision, effective epoch, action, subject or check time invalidates old receipts.
+The mandatory clbs veto is included in cgts's opaque collection even if it is
+empty. cmnt only wires these parts; it does not assemble another decision.
+
+Signing, key activation/rotation and ordinary credential/publication expiry use
+UTC-day buckets. Provision and reopen the persistent signer with `day(now)`;
+cplc refuses a key activated off the day boundary. Snapshot validity must be a
+positive whole number of days. An authenticated snapshot must be live at issuance;
+its distribution/cache deadline does not shorten an otherwise authorized member
+credential. Scheduled policy activation does shorten credentials and publications.
+
+Two protocol deadlines may require finer expiry precision: an authenticated
+short-lived gate challenge (for example the transient profile check) and a
+prospective policy activation with its exact minimum notice interval. cplc must
+preserve those earlier exclusive deadlines rather than round them upward. Their
+precision is never used for a stored login/proof time. COSE issuance remains the
+day start even in these cases. Member probation and leases have no such exception.
+
+Device public keys must be generated independently per community by the wallet
+and authenticated/authorized by cmbr before issuance. A reusable global wallet
+key would link communities and is outside this contract. cplc signs only the
+supplied authorized set, rejects duplicates/revoked devices and cannot determine
+whether a public key was reused in another isolated community database.
+
+The global policy format consumed by cglb is signed by the separate authenticated
+global policy authority described in cglb's contract. A community signer never
+signs global policy or claims global issuance authority. Every credential renewal
+requiring global gates needs a fresh cpsd presentation verified against the
+current authenticated global epoch; a suspension prevents its next renewal.

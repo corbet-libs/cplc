@@ -11,7 +11,8 @@ publish = false
 include = ["Cargo.toml", "src/**", "docs/**", "README.md", "LICENSE.md"]
 
 [dependencies]
-crbk = { git = "https://github.com/corbet-foss/crbk", rev = "a84cdbf3cbeb8fdf55ebb2397644ec36364eb194" }
+cgts = { git = "https://github.com/corbet-libs/cgts", rev = "196ca0595f12bc67203d48aff395961ec5e3b971" }
+crbk = { git = "https://github.com/corbet-foss/crbk", rev = "fe70dc61262a80dd7681da853acfdad290f3910c" }
 crlt = { git = "https://github.com/corbet-foss/crlt", rev = "6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc" }
 csgn = { git = "https://github.com/corbet-foss/csgn", rev = "d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b", features = ["libsql"] }
 cshm = { git = "https://github.com/corbet-foss/cshm", rev = "d136d2dbaceddfa0a19158d8f3a685a84abd06e7" }
@@ -20,9 +21,15 @@ serde_json = "1"
 thiserror = "2"
 
 [dev-dependencies]
+clbs = { git = "https://github.com/corbet-foss/clbs", rev = "2eeefb351484aadf430cd12083e0f198cde6a5b2" }
+cpsd = { git = "https://github.com/corbet-foss/cpsd", rev = "5b2d5d9970d4beae171d85e478d06ba0b29e1992" }
+rand = "0.8"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+
+[profile.dev.package."*"]
+opt-level = 3
