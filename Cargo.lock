@@ -1098,7 +1098,7 @@ checksum = "56b08621c00321efcfa3eee6a3179adc009e21ea8d24ca7adc3c326184bc3f48"
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crbk?branch=main#536e743dddf280d3219799b04ce4745f9e5c1bf2"
+source = "git+https://github.com/corbet-foss/crbk?branch=main#a9d45a20f1a643e5dd24c79289a9c11984c4a992"
 dependencies = [
  "crlt",
  "serde",
@@ -1293,7 +1293,7 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.1"
-source = "git+https://github.com/corbet-foss/cvch?branch=main#37ee0cba6c8be767c8e8ecd286ec225a21b564e1"
+source = "git+https://github.com/corbet-foss/cvch?branch=main#9f0bd2294f6d8836e3b872dfc496ce42f1cead67"
 dependencies = [
  "ed25519-dalek 2.2.0",
  "serde",
