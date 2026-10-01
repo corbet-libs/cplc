@@ -89,3 +89,15 @@ async fn real_sql_rotation_and_pruning_publish_original_monotonic_proofs() {
     ).await.unwrap();
     assert_eq!(reopened.key_transitions().unwrap(), original);
 }
+
+#[tokio::test]
+async fn rotated_signers_require_the_existing_policy_history() {
+    let mut signer = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(), COMMUNITY, key(1), 0, ESTABLISHED_MEMBER_VALIDITY,
+    ).await.unwrap();
+    signer.rotate_with_proof(key(2), 0, ESTABLISHED_MEMBER_VALIDITY).await.unwrap();
+    assert!(matches!(
+        Policy::create(crbk::MemoryStore::default(), MemoryStore::new(COMMUNITY).unwrap(), signer, config()).await,
+        Err(Error::Invalid("unretained key history"))
+    ));
+}

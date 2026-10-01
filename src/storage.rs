@@ -35,7 +35,7 @@ pub struct StoredPolicy {
     pub(crate) communities: BTreeSet<String>,
     pub(crate) revocations: Revocations,
     pub(crate) publications: BTreeMap<SnapshotKind, Publication>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) key_transitions: Vec<cbcn::KeyTransition>,
 }
 
