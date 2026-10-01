@@ -1098,7 +1098,7 @@ checksum = "56b08621c00321efcfa3eee6a3179adc009e21ea8d24ca7adc3c326184bc3f48"
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crbk?branch=main#3e2a09f20cd9e29f9bf9ab55dcae88df1f717e4f"
+source = "git+https://github.com/corbet-foss/crbk?branch=main#536e743dddf280d3219799b04ce4745f9e5c1bf2"
 dependencies = [
  "crlt",
  "serde",

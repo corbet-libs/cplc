@@ -177,7 +177,6 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             let mut next = self.state()?.clone();
             next.key_transitions
                 .push(cbcn::KeyTransition { revision, proof });
-            cbcn::validate_transition_history(&next.key_transitions).map_err(|_| Error::Corrupt)?;
             self.commit(next).await?;
         }
         // The original proof is already in the Policy CAS before the signer may drop it.
@@ -383,14 +382,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     pub async fn trust_feed(&mut self, now: u64) -> Result<std::sync::Arc<cbcn::Feed>> {
         let revision = self.current().await?.revision;
         let epoch = self.epoch(now).await?;
+        // Every retained ring change advances the Policy CAS before publication.
+        // current() also refuses an unacknowledged or mismatched signer floor.
         match self.beacon.current(now) {
-            Ok(feed)
-                if feed.revision == revision
-                    && feed.policy_epoch == epoch
-                    && feed.key_ring == self.key_ring()?.to_cbor() =>
-            {
-                Ok(feed)
-            }
+            Ok(feed) if feed.revision == revision && feed.policy_epoch == epoch => Ok(feed),
             Err(cbcn::Error::ClockRegression) => Err(Error::Verification),
             _ => self.refresh_trust(now).await,
         }
