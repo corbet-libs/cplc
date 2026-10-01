@@ -241,3 +241,14 @@ commit. The core policy document and each of the five signed publications have
 independent bounded size budgets: JSON byte-array expansion cannot consume the
 space needed for durable policy or the other publications. Rejected history
 updates leave the schema and epoch unchanged; revocation and refresh still work.
+
+## Beacon
+
+`refresh_trust(now)` delegates the original cvld publication sequence to `cbcn`,
+then atomically installs the complete authenticated view in its current cache.
+The existing persisted per-kind counters and mutation cancellation fences remain
+in Policy. Failed intermediate publications may consume counters but expose no
+partial feed. `trust_feed` first checks the persisted writer fence and active
+policy epoch; changes or expiry refresh, ordinary reads preserve the same bytes.
+No member activity, private key or SQL moves into Beacon. The door owns transport
+and waiting; global publishing reuses Beacon by reference through its Publisher.

@@ -24,6 +24,13 @@ jobs:
             const { owner, repo } = context.repo;
             const run = context.payload.workflow_run;
             const expected = ['resolve', 'check', 'coverage'];
+            let protection;
+            try {
+              ({ data: protection } = await github.rest.repos.getBranchProtection({ owner, repo, branch: 'main' }));
+            } catch { return; }
+            const required = protection.required_status_checks;
+            if (!protection.enforce_admins?.enabled || !required?.strict
+                || !expected.every(name => required.contexts.includes(name))) return;
             const workflow = await github.rest.actions.getWorkflow({ owner, repo, workflow_id: 'ci.yml' });
             if (run.workflow_id !== workflow.data.id || run.head_repository.full_name !== `${owner}/${repo}`) return;
             for (const candidate of run.pull_requests) {

@@ -11,6 +11,7 @@ publish = false
 include = ["Cargo.toml", "src/**", "docs/**", "README.md", "LICENSE.md"]
 
 [dependencies]
+cbcn = { git = "https://github.com/corbet-foss/cbcn", branch = "main" }
 cpsd = { git = "https://github.com/corbet-foss/cpsd", branch = "main" }
 cgts = { git = "https://github.com/corbet-libs/cgts", branch = "main" }
 crbk = { git = "https://github.com/corbet-foss/crbk", branch = "main" }

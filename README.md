@@ -112,3 +112,12 @@ executes PR code with write permissions or bypasses branch protection.
 
 [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) supplies LLVM line and
 branch measurements; the strict gate and exclusions are in [COVERAGE.md](docs/COVERAGE.md).
+
+## Beacon publication
+
+Policy owns `cbcn` Beacon's injected publisher and current cache. `trust_feed(now)`
+returns an unchanged complete view while the policy revision, epoch, keys and
+signed lifetime remain current; `refresh_trust(now)` explicitly republishes all
+five original documents and the manifest. `trust_changes(revision, now)` returns
+a whole-view hint. Durable signing and counter ownership remain here. Global
+policy can implement the same LGPL Publisher port without depending on cplc.

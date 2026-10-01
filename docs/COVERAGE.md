@@ -9,6 +9,6 @@ they are validation inputs rather than shipped behavior. A failed gate is an
 open test gap, never evidence of complete coverage.
 
 Dependencies are resolved once per CI run and the resulting Cargo.lock artifact
-is reused by every job. Scheduled CI refreshes within the declared ranges;
+is reused by every job. CI refreshes within the declared ranges;
 Dependabot proposes lockfile updates for review and merging after full CI.
-The checked-in lock remains the reproducible input for ordinary push and PR runs.
+The checked-in lock and per-run artifacts retain exact reproducible resolutions.

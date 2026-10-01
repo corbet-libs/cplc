@@ -20,6 +20,7 @@ pub struct Policy<R, S, K> {
     store: S,
     signer: csgn::PersistentSigner<K>,
     state: Option<StoredPolicy>,
+    beacon: cbcn::Beacon,
 }
 
 impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
@@ -51,6 +52,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             store,
             signer,
             state: Some(state),
+            beacon: cbcn::Beacon::default(),
         })
     }
 
@@ -71,6 +73,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             store,
             signer,
             state: Some(state),
+            beacon: cbcn::Beacon::default(),
         })
     }
 
@@ -307,6 +310,32 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     /// Current revocation state, with no member activity history.
     pub fn revocations(&self) -> Result<&Revocations> {
         Ok(&self.state()?.revocations)
+    }
+
+    /// Publish the complete original signed feed through Beacon. Partial signing
+    /// or storage failure cannot replace the previously installed complete view.
+    pub async fn refresh_trust(&mut self, now: u64) -> Result<std::sync::Arc<cbcn::Feed>> {
+        let candidate = cbcn::collect(self, now).await.map_err(|_| Error::Verification)?;
+        self.beacon.install(candidate, now).map_err(|_| Error::Verification)
+    }
+
+    /// Current public feed, refreshing only when configuration, keys or validity
+    /// changed. Ordinary registration/lobby reads do not create publications.
+    pub async fn trust_feed(&mut self, now: u64) -> Result<std::sync::Arc<cbcn::Feed>> {
+        let revision = self.current().await?.revision;
+        let epoch = self.epoch(now).await?;
+        match self.beacon.current(now) {
+            Ok(feed) if feed.revision == revision && feed.policy_epoch == epoch
+                && feed.key_ring == self.key_ring()?.to_cbor() => Ok(feed),
+            Err(cbcn::Error::ClockRegression) => Err(Error::Verification),
+            _ => self.refresh_trust(now).await,
+        }
+    }
+
+    /// Current whole-view change hint; no member identifiers or event history.
+    pub async fn trust_changes(&mut self, revision: u64, now: u64) -> Result<cbcn::Announcement> {
+        self.trust_feed(now).await?;
+        self.beacon.changes_since(revision, now).map_err(|_| Error::Verification)
     }
 
     /// Sign current public keys, schema version and policy epoch for trust consumers.
