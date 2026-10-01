@@ -14,8 +14,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.repository }}
+  cancel-in-progress: false
+  queue: max
 env:
   CARGO_BUILD_JOBS: 2
   CARGO_TERM_COLOR: never
@@ -73,7 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           cache-on-failure: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: resolved-lock
           path: .
@@ -107,7 +108,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - run: rustc --version
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: resolved-lock
           path: .
