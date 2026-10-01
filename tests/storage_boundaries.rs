@@ -290,7 +290,10 @@ async fn actual_store_refuses_lower_schema_and_publication_versions() {
             next["publications"]["settings"]["revision"] = json!(1);
         }
         let next: StoredPolicy = serde_json::from_value(next).unwrap();
-        assert!(matches!(store.compare_exchange(Some(old.revision()), &next).await, Err(Error::Corrupt)));
+        assert!(matches!(
+            store.compare_exchange(Some(old.revision()), &next).await,
+            Err(Error::Corrupt)
+        ));
         assert_eq!(store.load().await.unwrap().as_ref(), Some(&old));
     }
 }

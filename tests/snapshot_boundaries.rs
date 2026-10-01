@@ -134,8 +134,17 @@ async fn live_decision_refuses_a_checked_collection_rebound_to_another_action() 
     let current = policy.verified_settings(NOW).await.unwrap();
     let checked = checked(&current, MEMBER, "admit", &[], NOW).await.unwrap();
     assert!(matches!(
-        policy.may(&current, subject(), "another", &checked, NOW).await,
+        policy
+            .may(&current, subject(), "another", &checked, NOW)
+            .await,
         Err(Error::Verification)
     ));
-    assert!(verify_settings(policy.key_ring().unwrap(), b"malformed", expectation(SnapshotKind::Settings, current.settings().policy_epoch, NOW)).is_err());
+    assert!(
+        verify_settings(
+            policy.key_ring().unwrap(),
+            b"malformed",
+            expectation(SnapshotKind::Settings, current.settings().policy_epoch, NOW)
+        )
+        .is_err()
+    );
 }

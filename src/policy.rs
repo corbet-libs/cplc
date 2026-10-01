@@ -668,9 +668,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             .validity_limit(now, u64::from(days) * crate::DAY, &active)
             .await?;
         until = until.min(facts.lease_end);
-        let (community_gates, bounded_until) = credential_gates(
-            &snapshot, &request.subject, &gates, timestamp(now)?, until,
-        )?;
+        let (community_gates, bounded_until) =
+            credential_gates(&snapshot, &request.subject, &gates, timestamp(now)?, until)?;
         until = bounded_until;
         until = policy_deadline(now, until, decide)?;
         let credential = Credential {
@@ -853,7 +852,6 @@ fn effective_epoch(facade: u64, rulebook: u64) -> Result<u64> {
         .ok_or(Error::Invalid("epoch exhausted"))
 }
 
-
 // Bind every emitted credential assertion to the same real rulebook evaluation.
 fn credential_gates(
     snapshot: &crbk::Snapshot,
@@ -867,8 +865,8 @@ fn credential_gates(
         if !usable_gate(snapshot, subject, gate, now)? {
             return Err(Error::Invalid("unusable gate result"));
         }
-        until = until
-            .min(u64::try_from(gate.valid_until).map_err(|_| Error::Invalid("proof expiry"))?);
+        until =
+            until.min(u64::try_from(gate.valid_until).map_err(|_| Error::Invalid("proof expiry"))?);
         if gate.level == GateLevel::Community {
             community_gates.push(CredentialGate {
                 gate: gate.gate.clone(),
