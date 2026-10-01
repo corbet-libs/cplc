@@ -115,11 +115,15 @@ async fn beacon_detects_a_rulebook_change_without_a_policy_store_revision_change
     let before = policy.trust_feed(NOW).await.unwrap();
     // Fault the actual upstream rulebook store independently of the facade's
     // publication counter. A cached feed must not hide the changed authority.
+    let current = crbk::Storage::load(&rules, COMMUNITY, crbk::Selection::Latest)
+        .await
+        .unwrap()
+        .unwrap();
     crbk::Storage::append(
         &rules,
         COMMUNITY,
         Some(1),
-        change(book(admission()), 2, (NOW + 1) as i64),
+        change(current.change.rulebook, 2, (NOW + 1) as i64),
     )
     .await
     .unwrap();
