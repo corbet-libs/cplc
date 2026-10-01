@@ -1,7 +1,7 @@
 [
   {
     "path": "src/policy.rs",
-    "line": 229,
+    "line": 235,
     "context": [
       "        cgts::gates::define_settings(&mut change.rulebook)",
       "            .map_err(|_| Error::Invalid(\"gate settings\"))?;",
@@ -11,7 +11,7 @@
   },
   {
     "path": "src/policy.rs",
-    "line": 518,
+    "line": 524,
     "context": [
       "                next.schema.clone().ok_or(Error::Missing)?,",
       "            )?,",

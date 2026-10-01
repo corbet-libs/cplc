@@ -160,7 +160,11 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         let retained = self.state()?.key_transitions.last();
         let last = retained.map_or(0, |item| item.revision);
         let Some(proof) = self.signer.pending_transition()?.map(<[u8]>::to_vec) else {
-            return if revision == last { Ok(()) } else { Err(Error::Corrupt) };
+            return if revision == last {
+                Ok(())
+            } else {
+                Err(Error::Corrupt)
+            };
         };
         if revision == last {
             if retained.map(|item| item.proof.as_slice()) != Some(proof.as_slice()) {
@@ -171,7 +175,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
                 return Err(Error::Corrupt);
             }
             let mut next = self.state()?.clone();
-            next.key_transitions.push(cbcn::KeyTransition { revision, proof });
+            next.key_transitions
+                .push(cbcn::KeyTransition { revision, proof });
             cbcn::validate_transition_history(&next.key_transitions).map_err(|_| Error::Corrupt)?;
             self.commit(next).await?;
         }
@@ -184,7 +189,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         if self.state()?.key_transitions.len() >= cbcn::MAX_KEY_TRANSITIONS {
             return Err(Error::Invalid("key history exhausted"));
         }
-        crate::day(now).checked_add(self.key_ring()?.max_validity())
+        crate::day(now)
+            .checked_add(self.key_ring()?.max_validity())
             .ok_or(Error::Invalid("time overflow"))
     }
 
@@ -743,7 +749,9 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     pub async fn rotate(&mut self, key: csgn::SecretKey, now: u64) -> Result<()> {
         self.current().await?;
         let until = self.transition_deadline(now)?;
-        self.signer.rotate_with_proof(key, crate::day(now), until).await?;
+        self.signer
+            .rotate_with_proof(key, crate::day(now), until)
+            .await?;
         self.retain_pending_transition().await
     }
 

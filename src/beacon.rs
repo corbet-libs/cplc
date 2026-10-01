@@ -9,7 +9,8 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> cbcn::Publisher for Policy<R,
     }
 
     fn key_transitions(&self) -> cbcn::Result<Vec<cbcn::KeyTransition>> {
-        Policy::key_transitions(self).map(<[cbcn::KeyTransition]>::to_vec)
+        Policy::key_transitions(self)
+            .map(<[cbcn::KeyTransition]>::to_vec)
             .map_err(|_| cbcn::Error::Publication)
     }
 
