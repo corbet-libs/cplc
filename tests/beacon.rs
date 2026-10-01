@@ -94,3 +94,16 @@ async fn beacon_refreshes_rotated_keys_and_expired_envelopes() {
             .is_ok()
     );
 }
+
+#[tokio::test]
+async fn beacon_refreshes_at_scheduled_policy_activation() {
+    let mut policy = memory().await;
+    policy
+        .schedule_rules(Some(1), change(book(admission()), 2, DAY as i64))
+        .await
+        .unwrap();
+    let before = policy.trust_feed(NOW).await.unwrap();
+    let after = policy.trust_feed(DAY).await.unwrap();
+    assert!(after.policy_epoch > before.policy_epoch);
+    assert!(after.revision > before.revision);
+}
