@@ -173,6 +173,7 @@ async fn rotated_signers_require_the_existing_policy_history() {
 async fn a_real_policy_write_refusal_keeps_the_signer_proof_recoverable() {
     let (directory, db, rules_db, mut policy) = local().await;
     let root = policy.key_ring().unwrap().clone();
+    policy.trust_feed(NOW).await.unwrap();
     let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
         .build()
         .await
@@ -184,6 +185,18 @@ async fn a_real_policy_write_refusal_keeps_the_signer_proof_recoverable() {
         Err(Error::Conflict)
     ));
     assert!(matches!(policy.key_ring(), Err(Error::ReloadRequired)));
+    assert!(matches!(
+        policy.trust_feed(NOW).await,
+        Err(Error::ReloadRequired)
+    ));
+    assert!(matches!(
+        policy.trust_manifest(NOW).await,
+        Err(Error::ReloadRequired)
+    ));
+    assert!(matches!(
+        policy.publish(SnapshotKind::Settings, NOW).await,
+        Err(Error::ReloadRequired)
+    ));
     drop(policy);
     connection
         .execute_batch("DROP TRIGGER stop_continuity;")
@@ -212,6 +225,131 @@ async fn a_real_policy_write_refusal_keeps_the_signer_proof_recoverable() {
         recovered.trust_feed(NOW).await.unwrap().key_transitions[0].proof,
         original
     );
+}
+
+#[tokio::test]
+async fn signer_acknowledgement_refusal_retains_one_proof_and_fences_outputs() {
+    let (directory, db, rules_db, mut policy) = local().await;
+    let root = policy.key_ring().unwrap().clone();
+    let initial = policy.trust_feed(NOW).await.unwrap();
+    let snapshot = policy.verified_settings(NOW).await.unwrap();
+    let gates = checked(&snapshot, MEMBER, "admit", &[development_gate(500)], NOW)
+        .await
+        .unwrap();
+    let membership = FixtureMembership {
+        member: MEMBER.into(),
+        state: crbk::MembershipState::Admitted,
+        probation_until: None,
+        lease_end: 90 * DAY,
+        authorized_devices: DEVICES.to_vec(),
+    };
+    let request = || CredentialRequest {
+        subject: subject(),
+        handle: "testmember",
+        schema_version: 1,
+        snapshot: &snapshot,
+        gates: &gates,
+        pins: &[],
+        devices: DEVICES,
+    };
+    policy.issue(&membership, request(), NOW).await.unwrap();
+    let signer_store = csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap());
+    let original_revision = csgn::Store::load(&signer_store, COMMUNITY)
+        .await
+        .unwrap()
+        .unwrap()
+        .revision;
+    let blocked = original_revision + 1;
+    let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
+        .build()
+        .await
+        .unwrap();
+    let connection = raw.connect().unwrap();
+    // Rotation advances the signer once; refuse only its later acknowledgement.
+    connection
+        .execute_batch(&format!(
+            "CREATE TRIGGER block_signer_ack BEFORE UPDATE ON csgn_state \
+             WHEN OLD.revision = {blocked} AND OLD.issuer = '{COMMUNITY}' \
+             AND OLD.community_id = '{COMMUNITY}' \
+             BEGIN SELECT RAISE(IGNORE); END;"
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(
+        policy.rotate(key(2), NOW).await,
+        Err(Error::Signing)
+    ));
+    // The signer invalidates itself on the refused write. Neither cached bytes
+    // nor an already checked credential request may bypass its refusal.
+    assert!(matches!(policy.key_ring(), Err(Error::Signing)));
+    assert!(matches!(policy.trust_feed(NOW).await, Err(Error::Signing)));
+    assert!(matches!(
+        policy.trust_manifest(NOW).await,
+        Err(Error::Signing)
+    ));
+    assert!(matches!(
+        policy.publish(SnapshotKind::Settings, NOW).await,
+        Err(Error::Signing)
+    ));
+    assert!(matches!(
+        policy.issue(&membership, request(), NOW).await,
+        Err(Error::Signing)
+    ));
+    let stored = LibsqlStore::new(&db, COMMUNITY)
+        .unwrap()
+        .load()
+        .await
+        .unwrap()
+        .unwrap();
+    let value = serde_json::to_value(&stored).unwrap();
+    let retained: Vec<cbcn::KeyTransition> =
+        serde_json::from_value(value["key_transitions"].clone()).unwrap();
+    assert_eq!(retained.len(), 1);
+    assert_eq!(retained[0].revision, 1);
+    drop(policy);
+    connection
+        .execute_batch("DROP TRIGGER block_signer_ack;")
+        .await
+        .unwrap();
+    let signer = csgn::PersistentSigner::open(signer_store, COMMUNITY, key(2), day(NOW))
+        .await
+        .unwrap();
+    let pending = signer.pending_transition().unwrap().unwrap();
+    assert_eq!(pending, retained[0].proof);
+    let verified = csgn::verify_transition(&root, pending, NOW).unwrap();
+    assert_eq!(verified.revision(), 1);
+    assert_eq!(verified.previous(), &root);
+    assert_eq!(verified.next(), signer.key_ring().unwrap());
+    let mut reopened = Policy::open(
+        crbk::LibsqlStore::new(rules_db.clone()),
+        LibsqlStore::new(&db, COMMUNITY).unwrap(),
+        signer,
+    )
+    .await
+    .unwrap();
+    assert_eq!(reopened.key_transitions().unwrap(), retained);
+    let feed = reopened.trust_feed(NOW).await.unwrap();
+    assert_eq!(feed.policy_epoch, initial.policy_epoch);
+    assert_eq!(feed.key_transitions, retained);
+    drop(reopened);
+    let signer = csgn::PersistentSigner::open(
+        csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
+        COMMUNITY,
+        key(2),
+        day(NOW),
+    )
+    .await
+    .unwrap();
+    assert!(signer.pending_transition().unwrap().is_none());
+    assert_eq!(signer.ring_revision().unwrap(), 1);
+    let reopened = Policy::open(
+        crbk::LibsqlStore::new(rules_db),
+        LibsqlStore::new(&db, COMMUNITY).unwrap(),
+        signer,
+    )
+    .await
+    .unwrap();
+    assert_eq!(reopened.key_transitions().unwrap(), retained);
 }
 
 #[tokio::test]

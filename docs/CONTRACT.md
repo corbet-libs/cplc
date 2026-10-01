@@ -126,7 +126,9 @@ values. Do not enable dependency SQL/HTTP debug tracing for member traffic.
 ## Integration limits
 
 crbk, csgn and cplc use one revision of crlt and clones of one database handle.
-CI rejects duplicate or floating Corbet dependencies, including transitive ones.
+CI rejects duplicate Corbet crate identities and revision/tag selectors, including
+transitive ones. First-party declarations follow main; every tested graph retains
+one exact locked revision per crate.
 
 cchr retains the original complete settings and separate revocation signatures.
 Its borrowed admission adapter passes those bytes to cgrd, which verifies them
