@@ -126,4 +126,4 @@ jobs:
             coverage.json
             coverage.lcov
             coverage.txt
-      - run: python3 .github/check-source-coverage.py coverage.lcov coverage.json
+      - run: python3 .github/check-source-coverage.py coverage.lcov coverage.json coverage.txt
