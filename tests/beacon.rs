@@ -1,3 +1,4 @@
+//! Real Beacon publication and durable writer-fence tests.
 mod common;
 use common::*;
 use cplc::*;
