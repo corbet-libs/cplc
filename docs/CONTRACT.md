@@ -7,7 +7,7 @@ Policy facade over `crbk` (rulebook), `cshm` (profile schema) and `csgn`
 service only as signed snapshots. Global issuance, keys, suspension and databases
 remain separate. Rust on current stable; FSL-1.1-ALv2; no registry publication.
 No own cryptographic primitives. No login dates, request logs or raw gate data.
-Use maintained leaves pinned by revision. Storage goes through `crlt`, with one
+Use maintained leaves on main with one exact locked revision each. Storage goes through `crlt`, with one
 database per community, a community key in every table and indexed queries.
 Tests exercise real leaf operations and real local libSQL on GitHub Actions.
 
@@ -128,12 +128,12 @@ values. Do not enable dependency SQL/HTTP debug tracing for member traffic.
 crbk, csgn and cplc use one revision of crlt and clones of one database handle.
 CI rejects duplicate or floating Corbet dependencies, including transitive ones.
 
-cgrd currently consumes a narrower settings vocabulary (conjunctive gate lists
-and embedded revocations), while crbk publishes the full flat action policies.
-A consumer adapter must preserve all/any/k-of-n semantics and revocations; feeding
-a flat settings snapshot directly to cgrd is not supported. No lossy translation
-or silent empty-gate fallback is provided. Cross-facade wire integration remains
-an explicit downstream task. Emergency signing-key revocation and rollback-proof
+cchr retains the original complete settings and separate revocation signatures.
+Its borrowed admission adapter passes those bytes to cgrd, which verifies them
+and delegates all/any/k-of-n semantics to crbk. Actual door-authorized bundles
+exercise this path natively and on wasm in Charter and Assurance CI. No lossy
+translation or silent empty-gate fallback is provided. Production forum wiring
+remains downstream. Emergency signing-key revocation and rollback-proof
 recovery remain csgn/service boundaries. The development test gate is test-only;
 there are no provider calls or production test-gate features.
 
