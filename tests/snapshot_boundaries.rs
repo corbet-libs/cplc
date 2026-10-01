@@ -36,7 +36,7 @@ async fn signed_settings_still_require_current_scope_time_and_content() {
                 csgn::Kind::SettingsSnapshot,
                 &serde_json::to_vec(&document).unwrap(),
                 issued,
-                DAY,
+                issued + DAY,
             )
             .await
             .unwrap();
@@ -78,7 +78,7 @@ async fn schema_limits_and_real_legacy_archive_upgrade_are_preserved() {
     let signer = csgn::PersistentSigner::open(
         csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
         COMMUNITY,
-        key(2),
+        key(1),
         day(NOW),
     )
     .await
