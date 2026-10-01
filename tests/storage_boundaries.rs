@@ -300,7 +300,7 @@ async fn actual_store_refuses_lower_schema_and_publication_versions() {
 
 #[tokio::test]
 async fn query_plan_checks_refuse_missing_storage() {
-    let (directory, db, _, _policy) = local().await;
+    let (directory, db, _, policy) = local().await;
     let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
         .build()
         .await
@@ -310,7 +310,12 @@ async fn query_plan_checks_refuse_missing_storage() {
         .execute_batch("DROP TABLE cplc_revocation;")
         .await
         .unwrap();
-    let result = LibsqlStore::new(&db, COMMUNITY)
+    drop(policy);
+    drop(db);
+    drop(raw);
+    let url = format!("file://{}", directory.path().join("policy.db").display());
+    let (reopened, _) = databases(&url, "").await;
+    let result = LibsqlStore::new(&reopened, COMMUNITY)
         .unwrap()
         .check_query_plans()
         .await;
