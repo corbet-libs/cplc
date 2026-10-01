@@ -3,7 +3,7 @@
 ## Binding scope
 
 Policy facade over `crbk` (rulebook), `cshm` (profile schema) and `csgn`
-(community signing keys), under `cmnt` in cvld v0.4. Policy reaches the global
+(community signing keys), under `cmty` in cvld v0.4. Policy reaches the global
 service only as signed snapshots. Global issuance, keys, suspension and databases
 remain separate. Rust on current stable; FSL-1.1-ALv2; no registry publication.
 No own cryptographic primitives. No login dates, request logs or raw gate data.
@@ -179,7 +179,7 @@ same capabilities plus current facts from the authoritative membership source.
 Raw snapshots and raw gate arrays cannot enter either API. Changing publication,
 revision, effective epoch, action, subject or check time invalidates old receipts.
 The mandatory clbs veto is included in cgts's opaque collection even if it is
-empty. cmnt only wires these parts; it does not assemble another decision.
+empty. cmty only wires these parts; it does not assemble another decision.
 
 Signing, key activation/rotation and ordinary credential/publication expiry use
 UTC-day buckets. Provision and reopen the persistent signer with `day(now)`;

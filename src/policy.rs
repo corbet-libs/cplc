@@ -380,7 +380,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
     }
 
     /// Sole admission decision over verified settings and bound gate receipts.
-    /// The source of membership state is cmbr; cmnt only wires these capabilities.
+    /// The source of membership state is cmbr; cmty only wires these capabilities.
     pub async fn may(
         &self,
         snapshot: &crate::VerifiedSnapshot,

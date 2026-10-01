@@ -2,7 +2,7 @@
 
 **Community policy facade of cvld: rulebook, profile schema and signing.**
 
-Part of `cmnt` in cvld v0.4. Native Rust, FSL-1.1-ALv2. Development API;
+Part of `cmty` in cvld v0.4. Native Rust, FSL-1.1-ALv2. Development API;
 never publish to a registry. See the [implemented contract](docs/CONTRACT.md).
 
 ## API
