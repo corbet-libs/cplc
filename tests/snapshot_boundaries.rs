@@ -127,3 +127,15 @@ async fn schema_limits_and_real_legacy_archive_upgrade_are_preserved() {
     assert_eq!(updated.content.versions[0].schema, schema(1));
     assert_eq!(updated.content.versions[1].schema, schema(2));
 }
+
+#[tokio::test]
+async fn live_decision_refuses_a_checked_collection_rebound_to_another_action() {
+    let mut policy = memory().await;
+    let current = policy.verified_settings(NOW).await.unwrap();
+    let checked = checked(&current, MEMBER, "admit", &[], NOW).await.unwrap();
+    assert!(matches!(
+        policy.may(&current, subject(), "another", &checked, NOW).await,
+        Err(Error::Verification)
+    ));
+    assert!(verify_settings(policy.key_ring().unwrap(), b"malformed", expectation(SnapshotKind::Settings, current.settings().policy_epoch, NOW)).is_err());
+}

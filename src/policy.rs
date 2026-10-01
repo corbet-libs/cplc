@@ -668,23 +668,10 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
             .validity_limit(now, u64::from(days) * crate::DAY, &active)
             .await?;
         until = until.min(facts.lease_end);
-        let mut community_gates = Vec::new();
-        for gate in &gates {
-            // Ask the leaf whether each supplied assertion is usable before
-            // attesting to it, including switches, provider and proof metadata.
-            if !usable_gate(&snapshot, &request.subject, gate, timestamp(now)?)? {
-                return Err(Error::Invalid("unusable gate result"));
-            }
-            until = until
-                .min(u64::try_from(gate.valid_until).map_err(|_| Error::Invalid("proof expiry"))?);
-            if gate.level == GateLevel::Community {
-                community_gates.push(CredentialGate {
-                    gate: gate.gate.clone(),
-                    provider: gate.provider.clone(),
-                    valid_until: gate.valid_until as u64,
-                });
-            }
-        }
+        let (community_gates, bounded_until) = credential_gates(
+            &snapshot, &request.subject, &gates, timestamp(now)?, until,
+        )?;
+        until = bounded_until;
         until = policy_deadline(now, until, decide)?;
         let credential = Credential {
             community: state.community,
@@ -866,6 +853,33 @@ fn effective_epoch(facade: u64, rulebook: u64) -> Result<u64> {
         .ok_or(Error::Invalid("epoch exhausted"))
 }
 
+
+// Bind every emitted credential assertion to the same real rulebook evaluation.
+fn credential_gates(
+    snapshot: &crbk::Snapshot,
+    subject: &crbk::Subject<'_>,
+    gates: &[crbk::GateResult],
+    now: i64,
+    mut until: u64,
+) -> Result<(Vec<CredentialGate>, u64)> {
+    let mut community_gates = Vec::new();
+    for gate in gates {
+        if !usable_gate(snapshot, subject, gate, now)? {
+            return Err(Error::Invalid("unusable gate result"));
+        }
+        until = until
+            .min(u64::try_from(gate.valid_until).map_err(|_| Error::Invalid("proof expiry"))?);
+        if gate.level == GateLevel::Community {
+            community_gates.push(CredentialGate {
+                gate: gate.gate.clone(),
+                provider: gate.provider.clone(),
+                valid_until: gate.valid_until as u64,
+            });
+        }
+    }
+    Ok((community_gates, until))
+}
+
 // Evaluate immutable owner-supplied membership facts while the caller holds its lease.
 fn validate_membership(
     community: &str,
@@ -877,10 +891,10 @@ fn validate_membership(
         || facts.member != member
         || facts.state != crbk::MembershipState::Admitted
         || facts.lease_end <= now
-        || facts.lease_end % crate::DAY != 0
+        || !facts.lease_end.is_multiple_of(crate::DAY)
         || facts
             .probation_until
-            .is_some_and(|end| end % crate::DAY != 0)
+            .is_some_and(|end| !end.is_multiple_of(crate::DAY))
     {
         return Err(Error::Invalid("membership state or lease"));
     }

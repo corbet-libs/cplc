@@ -167,7 +167,10 @@ fn deadline_queries_the_real_rulebook_at_inclusive_proof_age_boundaries() {
             crbk::gate_key(GateLevel::Community, "verified"),
             json!(false),
         );
-        assert!(!usable_gate(&disabled, &subject(), &evidence[0], 100).unwrap());
+        assert!(matches!(
+            credential_gates(&disabled, &subject(), &evidence, 100, 1000),
+            Err(Error::Invalid("unusable gate result"))
+        ));
     }
 }
 
