@@ -76,8 +76,8 @@ impl From<crlt::Error> for Error {
     }
 }
 
-impl From<csgn::Error> for Error {
-    fn from(_: csgn::Error) -> Self {
+impl From<csgn::StorageError> for Error {
+    fn from(_: csgn::StorageError) -> Self {
         Self::Signing
     }
 }

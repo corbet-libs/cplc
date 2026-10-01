@@ -2,8 +2,8 @@
 
 CI uses cargo-llvm-cov on nightly for upstream Rust branch instrumentation.
 Stable Rust remains the compiler for formatting, Clippy, native and wasm checks.
-The gate requires exactly 100% covered production lines and branches, from the
-LLVM JSON counts, and refuses absent or empty measurements. There are no
+The gate requires exactly 100% of emitted production source lines and branches,
+with a complete matching LLVM JSON file inventory and no absent measurements. There are no
 production-code exclusions. Test harness and fixture files are excluded because
 they are validation inputs rather than shipped behavior. A failed gate is an
 open test gap, never evidence of complete coverage.
