@@ -646,7 +646,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cblc?branch=main#f54dcc9d176ebf37092be7862ea05dffd821489a"
+source = "git+https://github.com/corbet-libs/cblc?branch=main#3ce932399a076356de8f49dc69fd23b5671cead4"
 dependencies = [
  "cpns",
  "crlt",
@@ -954,7 +954,7 @@ dependencies = [
 [[package]]
 name = "cpns"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cpns?branch=main#85674ab2e70f11051ba30ab44a8c7d3301ac6ec1"
+source = "git+https://github.com/corbet-foss/cpns?branch=main#bc9a2d53797b864ee58ae36e331336193ce14aa8"
 dependencies = [
  "crlt",
  "getrandom 0.4.3",
@@ -1304,7 +1304,7 @@ dependencies = [
 [[package]]
 name = "cvfy"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cvfy?branch=main#df40d10924d717eea5776fcbb5bf5b9794931a69"
+source = "git+https://github.com/corbet-foss/cvfy?branch=main#b5749ac38ea444d963bf0d979523c04839e4ceeb"
 dependencies = [
  "czkp",
  "data-encoding",

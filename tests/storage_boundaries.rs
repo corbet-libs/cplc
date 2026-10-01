@@ -301,7 +301,16 @@ async fn actual_store_refuses_lower_schema_and_publication_versions() {
 #[tokio::test]
 async fn query_plan_checks_refuse_real_unindexed_revocation_storage() {
     let (directory, db, _, _policy) = local().await;
-    let raw = libsql::Builder::new_local(directory.path().join("policy.db")).build().await.unwrap();
+    let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
+        .build()
+        .await
+        .unwrap();
     raw.connect().unwrap().execute_batch("DROP TABLE cplc_revocation; CREATE TABLE cplc_revocation (community_id TEXT NOT NULL, entry TEXT NOT NULL);").await.unwrap();
-    assert!(matches!(LibsqlStore::new(&db, COMMUNITY).unwrap().check_query_plans().await, Err(Error::Storage)));
+    assert!(matches!(
+        LibsqlStore::new(&db, COMMUNITY)
+            .unwrap()
+            .check_query_plans()
+            .await,
+        Err(Error::Storage)
+    ));
 }

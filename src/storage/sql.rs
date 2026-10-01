@@ -56,7 +56,10 @@ impl LibsqlStore {
             (REVOKE, params!["member:example"]),
             (RESTORE, params!["member:example"]),
         ] {
-            self.scope.explain(sql, parameters).await?.assert_indexed()?;
+            self.scope
+                .explain(sql, parameters)
+                .await?
+                .assert_indexed()?;
         }
         Ok(())
     }
