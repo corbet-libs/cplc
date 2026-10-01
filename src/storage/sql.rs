@@ -56,7 +56,12 @@ impl LibsqlStore {
             ),
             (
                 UPDATE,
-                vec![Value::Integer(2), Value::Text("{}".into()), Value::Integer(1), Value::Integer(1)],
+                vec![
+                    Value::Integer(2),
+                    Value::Text("{}".into()),
+                    Value::Integer(1),
+                    Value::Integer(1),
+                ],
             ),
             (REVOKED, vec![Value::Text("member:example".into())]),
             (REVOKE, vec![Value::Text("member:example".into())]),
