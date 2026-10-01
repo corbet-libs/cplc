@@ -159,7 +159,7 @@ async fn actual_sql_decoder_rejects_bad_scope_revision_and_revocation_rows() {
                         "UPDATE cplc_policy SET document = ?1 WHERE slot = ?2",
                         crlt::params![
                             "x".repeat(
-                                MAX_DOCUMENT_BYTES + 5 * 4 * (MAX_DOCUMENT_BYTES + 8192) + 1
+                                MAX_DOCUMENT_BYTES + 5 * 4 * (MAX_DOCUMENT_BYTES + 8192) + 4 * cbcn::MAX_KEY_TRANSITION_BYTES + 1
                             ),
                             1i64
                         ],

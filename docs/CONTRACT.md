@@ -255,3 +255,22 @@ partial feed. `trust_feed` first checks the persisted writer fence and active
 policy epoch; changes or expiry refresh, ordinary reads preserve the same bytes.
 No member activity, private key or SQL moves into Beacon. The door owns transport
 and waiting; global publishing reuses Beacon by reference through its Publisher.
+
+## Durable publishing-key continuity
+
+Rotation and pruning use csgn's atomic original-proof methods and separate public
+ring-change sequence. Policy copies the pending original proof into its own CAS
+before acknowledging it. Reopen reconciles a pending proof, including a Policy
+commit whose reply was lost or a lost signer acknowledgement. Publication and
+issuance refuse while the signer ring and retained proof floor disagree.
+Ordinary credential signing does not affect the public sequence, and rotation
+preserves the existing policy epoch and valid old credentials. Proof lifetime
+uses the signer's maximum validity; predecessor keys remain available for that
+signed lifetime, including when no member credential requires them.
+
+Beacon carries the retained bytes unchanged. History is monotonic and bounded by
+256 changes and 1 MiB of original proofs. Exhaustion refuses; no transition is
+silently dropped. A proof that exceeds the remaining byte budget remains durable
+and pending in csgn, and the writer refuses publication until operator recovery.
+That exceptional history-budget condition needs deployment reprovisioning; the
+facade does not invent a root reset. No private key enters Policy storage.
