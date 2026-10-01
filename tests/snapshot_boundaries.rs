@@ -86,24 +86,41 @@ async fn schema_limits_and_real_legacy_archive_upgrade_are_preserved() {
     let mut policy = Policy::open(crbk::LibsqlStore::new(rules_db), store, signer)
         .await
         .unwrap();
-    let signed = policy.publish(SnapshotKind::SchemaVersions, NOW).await.unwrap();
+    let signed = policy
+        .publish(SnapshotKind::SchemaVersions, NOW)
+        .await
+        .unwrap();
     let first: Snapshot<SchemaVersions> = verify_snapshot(
         policy.key_ring().unwrap(),
         &signed,
-        expectation(SnapshotKind::SchemaVersions, policy.epoch(NOW).await.unwrap(), NOW),
+        expectation(
+            SnapshotKind::SchemaVersions,
+            policy.epoch(NOW).await.unwrap(),
+            NOW,
+        ),
     )
     .unwrap();
     assert_eq!(first.content.versions.len(), 1);
     assert_eq!(first.content.versions[0].schema, schema(1));
     let mut oversized = schema(2);
     oversized.public = vec![oversized.public[0].clone(); MAX_ENTRIES + 1];
-    assert!(matches!(policy.set_schema(oversized).await, Err(Error::Invalid("schema scope or size"))));
+    assert!(matches!(
+        policy.set_schema(oversized).await,
+        Err(Error::Invalid("schema scope or size"))
+    ));
     policy.set_schema(schema(2)).await.unwrap();
-    let signed = policy.publish(SnapshotKind::SchemaVersions, NOW).await.unwrap();
+    let signed = policy
+        .publish(SnapshotKind::SchemaVersions, NOW)
+        .await
+        .unwrap();
     let updated: Snapshot<SchemaVersions> = verify_snapshot(
         policy.key_ring().unwrap(),
         &signed,
-        expectation(SnapshotKind::SchemaVersions, policy.epoch(NOW).await.unwrap(), NOW),
+        expectation(
+            SnapshotKind::SchemaVersions,
+            policy.epoch(NOW).await.unwrap(),
+            NOW,
+        ),
     )
     .unwrap();
     assert_eq!(updated.content.versions.len(), 2);

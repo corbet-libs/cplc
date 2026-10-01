@@ -501,8 +501,7 @@ impl<R: crbk::Storage, S: Storage, K: csgn::Store> Policy<R, S, K> {
         let cose = self
             .signer
             .sign(kind.signing_kind(), &payload, crate::day(now), until)
-            .await
-            ?;
+            .await?;
         next.publications.insert(
             kind,
             Publication {
@@ -736,8 +735,7 @@ fn check_issuer<K: csgn::Store>(signer: &csgn::PersistentSigner<K>, community: &
         return Err(Error::Invalid("signer scope"));
     }
     if signer
-        .key_ring()
-        ?
+        .key_ring()?
         .active()
         .ok_or(Error::Signing)?
         .activated_at()
@@ -880,7 +878,9 @@ fn validate_membership(
         || facts.state != crbk::MembershipState::Admitted
         || facts.lease_end <= now
         || facts.lease_end % crate::DAY != 0
-        || facts.probation_until.is_some_and(|end| end % crate::DAY != 0)
+        || facts
+            .probation_until
+            .is_some_and(|end| end % crate::DAY != 0)
     {
         return Err(Error::Invalid("membership state or lease"));
     }

@@ -220,23 +220,39 @@ async fn real_sql_triggers_and_missing_revocation_storage_refuse_partial_writes(
     for case in 0..4 {
         let (directory, db, _rules, mut policy) = local().await;
         if case == 2 {
-            policy.set_revocations(Revocations {
-                members:[MEMBER.into()].into(), devices:Default::default(),
-            }).await.unwrap();
+            policy
+                .set_revocations(Revocations {
+                    members: [MEMBER.into()].into(),
+                    devices: Default::default(),
+                })
+                .await
+                .unwrap();
         }
         let store = LibsqlStore::new(&db, COMMUNITY).unwrap();
         let old = store.load().await.unwrap().unwrap();
         let mut next = serde_json::to_value(&old).unwrap();
         next["revision"] = json!(old.revision() + 1);
-        next["revocations"]["members"] = if case == 1 { json!([MEMBER]) } else { json!([]) };
+        next["revocations"]["members"] = if case == 1 {
+            json!([MEMBER])
+        } else {
+            json!([])
+        };
         let next: StoredPolicy = serde_json::from_value(next).unwrap();
         // Deliberately fault the actual upstream database, outside the guarded crlt migration API.
         let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
-            .build().await.unwrap();
+            .build()
+            .await
+            .unwrap();
         let fault = match case {
-            0 => "CREATE TRIGGER stop_update BEFORE UPDATE ON cplc_policy BEGIN SELECT RAISE(IGNORE); END;",
-            1 => "CREATE TRIGGER stop_revoke BEFORE INSERT ON cplc_revocation BEGIN SELECT RAISE(ABORT, 'fault'); END;",
-            2 => "CREATE TRIGGER stop_restore BEFORE DELETE ON cplc_revocation BEGIN SELECT RAISE(ABORT, 'fault'); END;",
+            0 => {
+                "CREATE TRIGGER stop_update BEFORE UPDATE ON cplc_policy BEGIN SELECT RAISE(IGNORE); END;"
+            }
+            1 => {
+                "CREATE TRIGGER stop_revoke BEFORE INSERT ON cplc_revocation BEGIN SELECT RAISE(ABORT, 'fault'); END;"
+            }
+            2 => {
+                "CREATE TRIGGER stop_restore BEFORE DELETE ON cplc_revocation BEGIN SELECT RAISE(ABORT, 'fault'); END;"
+            }
             _ => "DROP TABLE cplc_revocation;",
         };
         raw.connect().unwrap().execute_batch(fault).await.unwrap();

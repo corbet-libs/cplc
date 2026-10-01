@@ -942,6 +942,7 @@ dependencies = [
  "crlt",
  "csgn",
  "cshm",
+ "libsql",
  "rand 0.8.8",
  "serde",
  "serde_json",
@@ -965,7 +966,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cpsd?branch=main#35b092608d275182eff03cb8e3a3b54a875a6cb8"
+source = "git+https://github.com/corbet-foss/cpsd?branch=main#d049fd40f8105f634472feb2595db317e997f7e3"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -1116,7 +1117,7 @@ dependencies = [
 [[package]]
 name = "crlt"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crlt?branch=main#52838ac15102129d4d3161f4dfdaf4603e84ad8f"
+source = "git+https://github.com/corbet-foss/crlt?branch=main#6ca3bd1035fcf17c2c88cdae3ed913da49740252"
 dependencies = [
  "deadpool",
  "libsql",
@@ -1229,7 +1230,7 @@ dependencies = [
 [[package]]
 name = "cssr"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cssr?branch=main#bf8de7e83c2fe923ac5ca7a84167824c6dc5f89b"
+source = "git+https://github.com/corbet-foss/cssr?branch=main#a681cb0c84c25119d83ce9fc0194a115f2a17f59"
 dependencies = [
  "crlt",
  "p256",
