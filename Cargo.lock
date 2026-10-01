@@ -823,7 +823,7 @@ dependencies = [
 [[package]]
 name = "clbs"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/clbs?branch=main#487f58dbfe7b0ac166039e0c87378731cc4ca2f7"
+source = "git+https://github.com/corbet-foss/clbs?branch=main#0a8377e0afbbb3c6050a6b30832b0e55f8d221b7"
 dependencies = [
  "crlt",
  "serde",
@@ -1098,7 +1098,7 @@ checksum = "56b08621c00321efcfa3eee6a3179adc009e21ea8d24ca7adc3c326184bc3f48"
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crbk?branch=main#50de4fe2713977e85c4fb135f6f1766441aa96cb"
+source = "git+https://github.com/corbet-foss/crbk?branch=main#3e2a09f20cd9e29f9bf9ab55dcae88df1f717e4f"
 dependencies = [
  "crlt",
  "serde",

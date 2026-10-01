@@ -7,7 +7,9 @@ use serde_json::json;
 #[tokio::test]
 async fn interrupted_key_handoff_recovers_before_and_after_policy_retention() {
     for phase in 0..3 {
-        let rules = crbk::MemoryStore::default();
+        let directory = tempfile::tempdir().unwrap();
+        let url = format!("file://{}", directory.path().join("rules.db").display());
+        let (_, rules) = databases(&url, "").await;
         let store = MemoryStore::new(COMMUNITY).unwrap();
         let keys = csgn::MemoryStore::default();
         let signer = csgn::PersistentSigner::create(
@@ -20,9 +22,14 @@ async fn interrupted_key_handoff_recovers_before_and_after_policy_retention() {
         .await
         .unwrap();
         let root = signer.key_ring().unwrap().clone();
-        let mut policy = Policy::create(rules.clone(), store.clone(), signer, config())
-            .await
-            .unwrap();
+        let mut policy = Policy::create(
+            crbk::LibsqlStore::new(rules.clone()),
+            store.clone(),
+            signer,
+            config(),
+        )
+        .await
+        .unwrap();
         configure(&mut policy, book(admission())).await;
         let initial = policy.trust_feed(NOW).await.unwrap();
         drop(policy);
@@ -56,7 +63,9 @@ async fn interrupted_key_handoff_recovers_before_and_after_policy_retention() {
         let signer = csgn::PersistentSigner::open(keys.clone(), COMMUNITY, key(2), day(NOW))
             .await
             .unwrap();
-        let mut reopened = Policy::open(rules, store, signer).await.unwrap();
+        let mut reopened = Policy::open(crbk::LibsqlStore::new(rules), store, signer)
+            .await
+            .unwrap();
         assert_eq!(reopened.key_transitions().unwrap().len(), 1);
         assert_eq!(reopened.key_transitions().unwrap()[0].proof, proof);
         let verified = csgn::verify_transition(&root, &proof, NOW).unwrap();
@@ -203,4 +212,56 @@ async fn a_real_policy_write_refusal_keeps_the_signer_proof_recoverable() {
         recovered.trust_feed(NOW).await.unwrap().key_transitions[0].proof,
         original
     );
+}
+
+#[tokio::test]
+async fn retained_history_cannot_be_rewritten_or_silently_reset_at_capacity() {
+    let store = MemoryStore::new(COMMUNITY).unwrap();
+    let signer =
+        csgn::PersistentSigner::create(csgn::MemoryStore::default(), COMMUNITY, key(1), 0, DAY)
+            .await
+            .unwrap();
+    let mut policy = Policy::create(
+        crbk::MemoryStore::default(),
+        store.clone(),
+        signer,
+        config(),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(
+        policy.rotate(key(2), u64::MAX).await,
+        Err(Error::Invalid("time overflow"))
+    ));
+    for index in 1..=128u8 {
+        let now = u64::from(index) * DAY;
+        policy.rotate(key(index + 1), now).await.unwrap();
+        policy.prune_keys(now + DAY).await.unwrap();
+    }
+    assert_eq!(policy.key_transitions().unwrap().len(), 256);
+    let original = policy.key_transitions().unwrap().to_vec();
+    for rewrite in [false, true] {
+        let old = store.load().await.unwrap().unwrap();
+        let mut next = serde_json::to_value(&old).unwrap();
+        next["revision"] = json!(old.revision() + 1);
+        if rewrite {
+            next["key_transitions"][0]["proof"][0] = json!(0);
+        } else {
+            next["key_transitions"] = json!([]);
+        }
+        let next: StoredPolicy = serde_json::from_value(next).unwrap();
+        assert!(matches!(
+            store.compare_exchange(Some(old.revision()), &next).await,
+            Err(Error::Corrupt)
+        ));
+    }
+    assert!(matches!(
+        policy.rotate(key(130), 129 * DAY).await,
+        Err(Error::Invalid("key history exhausted"))
+    ));
+    assert!(matches!(
+        policy.prune_keys(129 * DAY).await,
+        Err(Error::Invalid("key history exhausted"))
+    ));
+    assert_eq!(policy.key_transitions().unwrap(), original);
 }
