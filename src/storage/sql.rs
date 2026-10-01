@@ -52,7 +52,11 @@ impl LibsqlStore {
             (SELECT, vec![Value::Integer(1)]),
             (
                 INSERT,
-                vec![Value::Integer(1), Value::Integer(1), Value::Text("{}".into())],
+                vec![
+                    Value::Integer(1),
+                    Value::Integer(1),
+                    Value::Text("{}".into()),
+                ],
             ),
             (
                 UPDATE,
