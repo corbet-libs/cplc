@@ -306,16 +306,29 @@ async fn requested_keys_never_authorize_themselves_and_revocation_is_current() {
     let authorized = DEVICES[0];
     let unknown = [77; 32];
     member.authorized_devices = vec![authorized, [78; 32]];
-    let signed = issue_devices(&mut policy, &member, &[authorized], NOW).await.unwrap();
-    assert_eq!(decode_credential(policy.key_ring().unwrap(), &signed, NOW).0.devices, [authorized]);
+    let signed = issue_devices(&mut policy, &member, &[authorized], NOW)
+        .await
+        .unwrap();
+    assert_eq!(
+        decode_credential(policy.key_ring().unwrap(), &signed, NOW)
+            .0
+            .devices,
+        [authorized]
+    );
     for requested in [&[unknown][..], &[authorized, unknown][..]] {
-        assert!(matches!(issue_devices(&mut policy, &member, requested, NOW).await,
-            Err(Error::Invalid("unauthorized device"))));
+        assert!(matches!(
+            issue_devices(&mut policy, &member, requested, NOW).await,
+            Err(Error::Invalid("unauthorized device"))
+        ));
     }
     member.authorized_devices.clear();
-    assert!(matches!(issue_devices(&mut policy, &member, &[authorized], NOW).await,
-        Err(Error::Invalid("unauthorized device"))));
+    assert!(matches!(
+        issue_devices(&mut policy, &member, &[authorized], NOW).await,
+        Err(Error::Invalid("unauthorized device"))
+    ));
     member.authorized_devices = vec![authorized; MAX_ENTRIES + 1];
-    assert!(matches!(issue_devices(&mut policy, &member, &[authorized], NOW).await,
-        Err(Error::Invalid("unauthorized device"))));
+    assert!(matches!(
+        issue_devices(&mut policy, &member, &[authorized], NOW).await,
+        Err(Error::Invalid("unauthorized device"))
+    ));
 }
