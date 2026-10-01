@@ -86,9 +86,15 @@ async fn beacon_refreshes_rotated_keys_and_expired_envelopes() {
     assert!(rotated.revision > initial.revision);
     let refreshed = policy.trust_feed(NOW + DAY).await.unwrap();
     assert!(refreshed.revision > rotated.revision);
-    assert!(policy.key_ring().unwrap().verify(
-        &refreshed.settings,
-        csgn::Kind::SettingsSnapshot,
-        NOW + DAY,
-    ).is_ok());
+    assert!(
+        policy
+            .key_ring()
+            .unwrap()
+            .verify(
+                &refreshed.settings,
+                csgn::Kind::SettingsSnapshot,
+                NOW + DAY,
+            )
+            .is_ok()
+    );
 }
