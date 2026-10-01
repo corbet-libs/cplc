@@ -110,25 +110,8 @@ async fn beacon_refreshes_at_scheduled_policy_activation() {
 
 #[tokio::test]
 async fn beacon_detects_a_rulebook_change_without_a_policy_store_revision_change() {
-    let rules = crbk::MemoryStore::default();
-    let signer = csgn::PersistentSigner::create(
-        csgn::MemoryStore::default(),
-        COMMUNITY,
-        key(1),
-        0,
-        30 * DAY,
-    )
-    .await
-    .unwrap();
-    let mut policy = Policy::create(
-        rules.clone(),
-        MemoryStore::new(COMMUNITY).unwrap(),
-        signer,
-        config(),
-    )
-    .await
-    .unwrap();
-    configure(&mut policy, book(admission())).await;
+    let (_directory, _db, rules_db, mut policy) = local().await;
+    let rules = crbk::LibsqlStore::new(rules_db);
     let before = policy.trust_feed(NOW).await.unwrap();
     // Fault the actual upstream rulebook store independently of the facade's
     // publication counter. A cached feed must not hide the changed authority.
