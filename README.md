@@ -100,3 +100,15 @@ change classifications, including hidden-field changes, under the current epoch.
 The existing current-schema snapshot remains available for cgrd. Archived versions
 do not grant grandfathering or permit issuing against an older schema. Archives
 share the existing document and entry bounds; they contain no member values.
+
+## Dependency maintenance and coverage
+
+First-party dependencies follow `main`; Cargo.lock records one exact revision
+per crate. CI checks the entire resolved graph, including optional declarations.
+Dependabot covers Cargo and GitHub Actions (there is no npm manifest here).
+The merge workflow uses GitHub metadata only and requires every substantive CI
+job and all published checks to succeed on the exact Dependabot head. It never
+executes PR code with write permissions or bypasses branch protection.
+
+[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) supplies LLVM line and
+branch measurements; the strict gate and exclusions are in [COVERAGE.md](docs/COVERAGE.md).
