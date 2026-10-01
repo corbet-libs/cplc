@@ -300,14 +300,20 @@ async fn actual_store_refuses_lower_schema_and_publication_versions() {
 
 #[tokio::test]
 async fn query_plan_checks_refuse_real_unindexed_revocation_storage() {
-    let (directory, db, _, _policy) = local().await;
+    let (directory, db, _, policy) = local().await;
     let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
         .build()
         .await
         .unwrap();
     raw.connect().unwrap().execute_batch("DROP TABLE cplc_revocation; CREATE TABLE cplc_revocation (community_id TEXT NOT NULL, entry TEXT NOT NULL);").await.unwrap();
+    // Reopen after out-of-band DDL so pooled prepared plans cannot use the old schema.
+    drop(policy);
+    drop(db);
+    drop(raw);
+    let url = format!("file://{}", directory.path().join("policy.db").display());
+    let (reopened, _) = databases(&url, "").await;
     assert!(matches!(
-        LibsqlStore::new(&db, COMMUNITY)
+        LibsqlStore::new(&reopened, COMMUNITY)
             .unwrap()
             .check_query_plans()
             .await,
