@@ -101,3 +101,29 @@ async fn rotated_signers_require_the_existing_policy_history() {
         Err(Error::Invalid("unretained key history"))
     ));
 }
+
+#[tokio::test]
+async fn a_real_policy_write_refusal_keeps_the_signer_proof_recoverable() {
+    let (directory, db, rules_db, mut policy) = local().await;
+    let root = policy.key_ring().unwrap().clone();
+    let raw = libsql::Builder::new_local(directory.path().join("policy.db"))
+        .build().await.unwrap();
+    let connection = raw.connect().unwrap();
+    connection.execute_batch("CREATE TRIGGER stop_continuity BEFORE UPDATE ON cplc_policy BEGIN SELECT RAISE(IGNORE); END;").await.unwrap();
+    assert!(matches!(policy.rotate(key(2), NOW).await, Err(Error::Conflict)));
+    assert!(matches!(policy.key_ring(), Err(Error::ReloadRequired)));
+    drop(policy);
+    connection.execute_batch("DROP TRIGGER stop_continuity;").await.unwrap();
+    let signer = csgn::PersistentSigner::open(
+        csgn::LibsqlStore::new(db.community(COMMUNITY).unwrap()),
+        COMMUNITY, key(2), day(NOW),
+    ).await.unwrap();
+    let original = signer.pending_transition().unwrap().unwrap().to_vec();
+    let mut recovered = Policy::open(
+        crbk::LibsqlStore::new(rules_db), LibsqlStore::new(&db, COMMUNITY).unwrap(), signer,
+    ).await.unwrap();
+    assert_eq!(recovered.key_transitions().unwrap()[0].proof, original);
+    let verified = csgn::verify_transition(&root, &original, NOW).unwrap();
+    assert_eq!(verified.next(), recovered.key_ring().unwrap());
+    assert_eq!(recovered.trust_feed(NOW).await.unwrap().key_transitions[0].proof, original);
+}
