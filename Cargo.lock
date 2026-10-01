@@ -698,7 +698,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgrd"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cgrd?branch=main#1ab8c12b293b9a3241cc611f2f5ed927a5d779d8"
+source = "git+https://github.com/corbet-foss/cgrd?branch=main#540db6bb67af34d4eae99fc3d05c3d3af1943ed8"
 dependencies = [
  "bigdecimal",
  "cpns",
@@ -965,7 +965,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cpsd?branch=main#4542632cd036f5e3e8db86eaafccd0cd54cb59bd"
+source = "git+https://github.com/corbet-foss/cpsd?branch=main#35b092608d275182eff03cb8e3a3b54a875a6cb8"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -1116,7 +1116,7 @@ dependencies = [
 [[package]]
 name = "crlt"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crlt?branch=main#80dc046d6ab53b3ea530c45bf3d7038c8b2c61b2"
+source = "git+https://github.com/corbet-foss/crlt?branch=main#52838ac15102129d4d3161f4dfdaf4603e84ad8f"
 dependencies = [
  "deadpool",
  "libsql",

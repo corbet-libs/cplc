@@ -90,11 +90,7 @@ async fn beacon_refreshes_rotated_keys_and_expired_envelopes() {
         policy
             .key_ring()
             .unwrap()
-            .verify(
-                &refreshed.settings,
-                csgn::Kind::SettingsSnapshot,
-                NOW + DAY,
-            )
+            .verify(&refreshed.settings, csgn::Kind::SettingsSnapshot, NOW + DAY,)
             .is_ok()
     );
 }
